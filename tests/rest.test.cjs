@@ -7,12 +7,13 @@ function cookedCut(){
  const e=new Engine({panInitial:220});e.action('power',4);e.action('oil',10);e.action('add');e.step(180);e.action('flip');e.step(180);return e;
 }
 
-test('Default rest retains the previous air-rest trajectory and accepts explicit air',()=>{
+test('Default rest equals explicit air and remains uncoupled from the spatial pan',()=>{
  const base=new Engine({panInitial:200,nr:6,nz:8,panRadiation:false});base.action('add');base.step(60);base.action('flip');base.step(60);
  const implicit=base.clone(),explicit=base.clone();assert.equal(implicit.action('rest'),true);assert.equal(explicit.action('rest','air'),true);
  implicit.step(180);explicit.step(180);assert.deepEqual(implicit.observe(),explicit.observe());assert.deepEqual(implicit.T,explicit.T);
- // Legacy air-only trajectory, with the newer pan-side radiation disabled.
- near(implicit.observe().core,20.138510641585754);near(implicit.pan,97.73898546077258);near(implicit.observe().faceB,32.80900638805349);
+ // A changed pan field must not heat meat that has been moved to the rack.
+ const hotter=implicit.clone(),unchanged=implicit.clone();hotter.pan+=100;hotter.step(30);unchanged.step(30);assert.deepEqual(hotter.T,unchanged.T);
+ near(implicit.observe().energyResidual,0,5e-6);
  assert.equal(implicit.observe().restMode,'air');assert.equal(implicit.action('flip'),false);
 });
 

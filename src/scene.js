@@ -4,7 +4,7 @@
 'use strict';
 const sectionCanvas=document.createElement('canvas');
 function draw(o){
- const {ctx,w,h,config:c,frame,mesh,T,sample,heatRGB,texture,rasterEllipse,label,fmt,showMesh,mode,t,compact=false,motion=null}=o;
+ const {ctx,w,h,config:c,frame,mesh,panMesh=null,T,sample,heatRGB,texture,rasterEllipse,label,fmt,showMesh,mode,t,compact=false,motion=null}=o;
  const s=frame.s,small=!compact&&w<560,elevation=28*Math.PI/180,se=Math.sin(elevation),ce=Math.cos(elevation);
  const a=c.diameter*5,b=a*c.aspect,H=c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
  const theta=(s.bottomSide===0?0:Math.PI)-Math.PI+Math.PI*ease;
@@ -16,11 +16,34 @@ function draw(o){
  const frameTop=compact?12:84,frameBottom=small?221:compact?h-29:h-89;
  const scale=Math.min(small?(w-48)/330:w*.43/310,(frameBottom-frameTop)/(frameAbove+frameBelow)),cx=small?w*.50:w*(compact?.28:.25),cy=(frameTop+frameBottom+(frameAbove-frameBelow)*scale)/2;
  const project=(x,y,z=0)=>[cx+x*scale,cy+(y*se-z*ce)*scale];
- // The solver has one lumped pan temperature. Wall tones below only add lighting.
- const panRGB=mode==='heat'?heatRGB(s.pan):null,panTone=(shade=1)=>'rgb('+panRGB.map(v=>Math.round(v*shade)).join(',')+')';
+ // Local temperatures come from the solver's axisymmetric shell. The node
+ // chain follows the bottom from center to edge, then continues up the wall.
+ const panNodes=panMesh?.nodes||[],panField=s.panField||[],panRGB=mode==='heat'?heatRGB(s.pan):null;
+ function panAt(r,z){
+  if(!panNodes.length||panField.length!==panNodes.length)return s.pan;
+  let nearest=Infinity,value=panField[0];
+  for(let i=0;i<panNodes.length-1;i++){
+   const a=panNodes[i],b=panNodes[i+1],dr=b.r-a.r,dz=b.z-a.z,den=dr*dr+dz*dz;
+   const f=Math.max(0,Math.min(1,den?((r-a.r)*dr+(z-a.z)*dz)/den:0)),distance=(r-a.r-f*dr)**2+(z-a.z-f*dz)**2;
+   if(distance<nearest){nearest=distance;value=panField[i]+(panField[i+1]-panField[i])*f;}
+  }return value;
+ }
+ const rimR=panMesh?.outerRadius??.154,wallH=panMesh?.wallHeight??.02,floorR=panMesh?.R??.14;
+ const panTone=(shade=1,temp=panAt(rimR,wallH))=>'rgb('+heatRGB(temp).map(v=>Math.round(v*shade)).join(',')+')';
  const polygon=(points,fill,stroke)=>{ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.7;ctx.stroke();}};
  const ring=(r,z,fill,stroke)=>{const p=project(0,0,z);ctx.beginPath();ctx.ellipse(...p,r*scale,r*scale*se,0,0,Math.PI*2);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}};
- function wall(r1,z1,r2,z2,start,end,front=false){for(let i=0;i<64;i++){const p=start+(end-start)*i/64,q=start+(end-start)*(i+1)/64;const light=front?28+12*Math.sin(p):37+11*Math.cos(p+.6),shade=front?.65+.24*Math.sin(p):.82+.12*Math.cos(p+.6);polygon([project(r1*Math.cos(p),r1*Math.sin(p),z1),project(r1*Math.cos(q),r1*Math.sin(q),z1),project(r2*Math.cos(q),r2*Math.sin(q),z2),project(r2*Math.cos(p),r2*Math.sin(p),z2)],panRGB?panTone(shade):`rgb(${light},${light+6},${light+2})`);}}
+ function wall(r1,z1,r2,z2,start,end,front=false){
+  // Split the drawn wall into height bands, sampling the physical shell path.
+  // Both sides of the metal share a temperature through its thickness.
+  const bands=panRGB?12:1;
+  for(let band=0;band<bands;band++){
+   const f0=band/bands,f1=(band+1)/bands,ra=r1+(r2-r1)*f0,rb=r1+(r2-r1)*f1,za=z1+(z2-z1)*f0,zb=z1+(z2-z1)*f1;
+   const z=Math.max(0,Math.min(wallH,(za+zb)/2000)),r=floorR+(rimR-floorR)*(wallH?z/wallH:0),temp=panAt(r,z);
+   for(let i=0;i<64;i++){const p=start+(end-start)*i/64,q=start+(end-start)*(i+1)/64,light=front?28+12*Math.sin(p):37+11*Math.cos(p+.6),shade=front?.91+.06*Math.sin(p):.95+.035*Math.cos(p+.6);
+    polygon([project(ra*Math.cos(p),ra*Math.sin(p),za),project(ra*Math.cos(q),ra*Math.sin(q),za),project(rb*Math.cos(q),rb*Math.sin(q),zb),project(rb*Math.cos(p),rb*Math.sin(p),zb)],panRGB?panTone(shade,temp):'rgb('+[light,light+6,light+2].join(',')+')');
+   }
+  }
+ }
  const resting=s.phase==='resting'&&s.restMode!=='pan',takingOff=motion?.type==='rest'&&motion.value!=='pan';
  const pouring=motion?.type==='oil'&&!resting&&!takingOff,oilGap=140-a,oilX=-(a+oilGap*.55),oilY=16;
  const oilHeight=small?Math.min(48,(cy+oilY*se*scale-113)/(ce*scale)):56;
@@ -57,7 +80,11 @@ function draw(o){
   ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=19;ctx.shadowOffsetY=10;ring(151,-5,'#0c100c');ctx.restore();
   wall(154,20,150,-6,0,Math.PI,true);ring(154,20,panRGB?panTone():'#273027');wall(154,20,140,0,Math.PI,Math.PI*2);
   const coating=c.pan==='nonstick'?['#262c29','#161c19','#2c332e']:c.pan==='hybrid'?['#2b312e','#1a201d','#303832']:['#303930','#252e25','#354032'];
-  if(panRGB)ring(140,0,panTone());else{const floor=ctx.createLinearGradient(cx,cy-80*scale,cx,cy+70*scale);floor.addColorStop(0,coating[0]);floor.addColorStop(.6,coating[1]);floor.addColorStop(1,coating[2]);ring(140,0,floor);}
+  if(panRGB){
+   const floorNodes=panNodes.map((node,index)=>({node,index})).filter(({node})=>node.part==='bottom');
+   if(floorNodes.length){for(let j=floorNodes.length-1;j>=0;j--){const {node,index}=floorNodes[j];ring(node.r1*1000,0,panTone(1,panField[index]));}}
+   else for(let j=35;j>=0;j--)ring(floorR*1000*(j+1)/36,0,panTone(1,panAt(floorR*(j+.5)/36,0)));
+  }else{const floor=ctx.createLinearGradient(cx,cy-80*scale,cx,cy+70*scale);floor.addColorStop(0,coating[0]);floor.addColorStop(.6,coating[1]);floor.addColorStop(1,coating[2]);ring(140,0,floor);}
   if(!panRGB&&c.pan==='hybrid'){
    ctx.save();const q=project(0,0);ctx.beginPath();ctx.ellipse(...q,139*scale,139*scale*se,0,0,Math.PI*2);ctx.clip();ctx.beginPath();
    const r=6,stepY=Math.sqrt(3)*r;for(let col=-16;col<=16;col++)for(let row=-15;row<=15;row++){const x=col*r*1.5,y=(row+(col%2)/2)*stepY;for(let k=0;k<6;k++){const v=project(x+r*Math.cos(k*Math.PI/3),y+r*Math.sin(k*Math.PI/3));k?ctx.lineTo(...v):ctx.moveTo(...v);}ctx.closePath();}

@@ -1,0 +1,30 @@
+SPATIAL PAN MODEL
+
+The pan is a rotationally symmetric thermally thin metal shell. Each bottom
+annulus and wall segment has its own temperature and heat capacity. Temperature
+through the metal thickness is assumed uniform; azimuthal hot spots and separate
+layers of a composite pan are not resolved.
+
+For each cell:
+  C_i dT_i/dt = sum_j G_ij (T_j - T_i) + burner_i - contact_i - losses_i
+
+Each internal conduction exchange enters the two cells with opposite signs.
+Meat contact likewise exchanges equal and opposite energy between the meat FEM
+nodes and the pan cells beneath the equal-area circular contact footprint.
+The central burner supplies energy only inside its footprint. The wall receives
+heat by conduction from the floor and loses heat to the room.
+
+The pan mean shown in the temperature history is heat-capacity weighted. Rendering
+uses the local cell temperatures. A warm mean therefore does not imply a warm rim.
+Oil adds heat capacity and improves contact; its animation is not a fluid solver.
+
+Pan-to-meat radiation retains an effective exposed-floor radiosity approximation,
+not a fully resolved cell-to-cell radiation enclosure. Wall-to-meat radiation and
+hot-air plumes are not resolved. Material properties are illustrative effective
+constants, not measurements of the user's commercial pan.
+
+Numerical energy conservation and refinement tests check the discretization; they
+do not calibrate real cooking times. See tests/pan.test.cjs for pan-specific checks.
+
+Theory background: COMSOL, thin-shell heat conduction formulations
+https://doc.comsol.com/6.3/doc/com.comsol.help.heat/heat_ug_theory.07.030.html

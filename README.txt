@@ -43,7 +43,10 @@ Suggested plans target the simulated center and include a prospective rest.
 They are not calibrated real-world cooking instructions or safety certificates.
 The angled pan/steak view uses a 28-degree orthographic camera with millimetre
 coordinates. Thickness is not exaggerated; the section has the same x/z scale.
-The pan has one temperature; the meat uses 2D axisymmetric finite elements.
+The pan uses radial bottom cells and flared-wall cells with conservative heat
+conduction, a central burner footprint and local meat contact. The metal
+temperature is uniform through its thickness. The displayed pan value is a
+capacity-weighted mean. The meat uses 2D axisymmetric finite elements.
 The exposed pan floor radiates to the meat sides through geometric view factors
 and a conservative grey-diffuse radiosity calculation. Pan walls and hot-air
 plumes are not resolved. The equal-area cylinder approximation is retained.
@@ -92,8 +95,7 @@ src/i18n.js or extend build.mjs to embed it; avoid fetching it if offline operat
 is to remain self-contained.
 
 VERIFICATION
-38 automated checks passed on 13 November 2026. Numerical validation includes an
+Numerical validation includes spatial pan conservation/refinement checks and an
 analytical insulated diffusion mode, conservation and mesh refinement. It does
 not establish accuracy against physical steaks. Browser testing uses the same
 bundled file over loopback: the automation tool does not permit file: navigation.
-
