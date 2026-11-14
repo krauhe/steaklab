@@ -12,7 +12,7 @@ function draw(o){
  // nor the camera center depends on the action, its progress, or the meat side.
  const halfH=H/2,flipLift=Math.max(0,b-halfH);
  const flipTop=Math.hypot(b*se-halfH*ce,b*ce+halfH*se+flipLift*ce)+(halfH+16)*ce;
- const frameAbove=Math.max(154*se+20*ce,flipTop,b*se+(H+78)*ce),frameBelow=Math.max(150*se+6*ce,Math.hypot(b*se+halfH*ce,Math.min(b,halfH)*ce+halfH*se)-halfH*ce);
+ const frameAbove=Math.max(154*se+20*ce,flipTop,b*se+(H+78)*ce),frameBelow=Math.max(170*se+24*ce,Math.hypot(b*se+halfH*ce,Math.min(b,halfH)*ce+halfH*se)-halfH*ce);
  const frameTop=compact?12:84,frameBottom=small?221:compact?h-29:h-89;
  const scale=Math.min(small?(w-48)/330:w*.43/310,(frameBottom-frameTop)/(frameAbove+frameBelow)),cx=small?w*.50:w*(compact?.28:.25),cy=(frameTop+frameBottom+(frameAbove-frameBelow)*scale)/2;
  const project=(x,y,z=0)=>[cx+x*scale,cy+(y*se-z*ce)*scale];
@@ -103,12 +103,15 @@ function draw(o){
   for(let y=-100;y<=100;y+=25){ctx.beginPath();ctx.moveTo(...project(-130,y));ctx.lineTo(...project(130,y));ctx.strokeStyle='#73816b';ctx.lineWidth=2*scale;ctx.stroke();}
   for(const x of [-100,100]){ctx.beginPath();ctx.moveTo(...project(x,-110));ctx.lineTo(...project(x,110));ctx.strokeStyle='#45513f';ctx.lineWidth=3*scale;ctx.stroke();}
  }
+ // The hob is drawn independently of pan temperature; power is net heat input.
+ polygon([project(-170,-155,-22),project(170,-155,-22),project(170,155,-22),project(-170,155,-22)],'#101510','#515c4b');
+ ctx.save();ctx.strokeStyle='#e8a75c';ctx.globalAlpha=.12+.6*Math.min(1,(s.burnerWatts??s.power*150)/1800);ctx.lineWidth=2;for(const r of [76,90]){const q=project(0,0,-21);ctx.beginPath();ctx.ellipse(...q,r*scale,r*scale*se,0,0,Math.PI*2);ctx.stroke();}ctx.restore();
  if(motion?.type==='power'||(motion?.type==='rest'&&motion.value==='pan')){ctx.save();ctx.globalAlpha=.5*Math.sin(Math.PI*p);ctx.shadowColor='#e5a042';ctx.shadowBlur=28;ring(140,-9,'#e2a23c55');ctx.restore();}
  if(takingOff){ctx.save();ctx.globalAlpha=1-ease;drawPan();ctx.globalAlpha=ease;drawRack();ctx.restore();}else if(resting)drawRack();else drawPan();
  if(pouring)drawOilPour();
- // Before Add, show only the separate cross-section preview, leaving the pan empty.
- if(s.phase!=='ready'){
- const base=(s.phase==='ready'?8:.7)+(motion?.type==='add'?70*(1-ease):takingOff?30*Math.sin(Math.PI*p):0),top=project(0,0,base+H),bottom=project(0,0,base);
+ // Keep the unplaced ingredient visibly above the pan, at its true scale.
+ {
+ const base=(s.phase==='ready'?70.7:.7)+(motion?.type==='add'?70*(1-ease):takingOff?30*Math.sin(Math.PI*p):0),top=project(0,0,base+H),bottom=project(0,0,base);
  ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=11;ctx.shadowOffsetY=5;ctx.beginPath();ctx.ellipse(...project(0,0,1),a*scale,b*scale*se,0,0,Math.PI*2);ctx.fillStyle='#11160e77';ctx.fill();ctx.restore();
  let physicalPoint=null;
  if(rotating){
@@ -139,11 +142,11 @@ function draw(o){
  const leadX=cx+a*scale+15,tip=project(a,0,base+H/2);
  ctx.strokeStyle='#d8e8b58c';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(...tip);ctx.lineTo(leadX,tip[1]);ctx.moveTo(leadX,top[1]);ctx.lineTo(leadX,bottom[1]);for(const y of [top[1],bottom[1]]){ctx.moveTo(leadX-3,y);ctx.lineTo(leadX+3,y);}ctx.stroke();
  label(ctx,fmt(H)+' mm',leadX+7,tip[1]+3,'#e0edca',10);
- label(ctx,t('{diameter} cm × {width} cm',{diameter:fmt(c.diameter,1),width:fmt(c.diameter*c.aspect,1)}),cx,small?241:compact?h-10:h-68,'#d8e5c9',11,'center');
+ label(ctx,t('Heat input')+' · '+fmt(s.burnerWatts??s.power*150)+' W',cx,small?241:compact?h-10:h-68,'#d8e5c9',11,'center');
  label(ctx,s.phase==='ready'?'INGREDIENT PREVIEW · WAITING ABOVE THE PAN':resting?'RESTING ON A VIRTUAL RACK':'PAN BASE · 28 cm',cx,small?257:compact?h+20:h-51,'#90a082',small?8:9,'center');
  if(!compact)label(ctx,'28° VIEW · PROPORTIONS TO SCALE',small?16:24,small?53:55,'#788b6d',8);
  if(!compact&&!resting&&s.oil>0)label(ctx,'Oil · thin surface film',small?16:24,small?69:71,'#bdb080',9);
- }else{wall(140,0,154,20,0,Math.PI);ring(154,20,null,'#707c6355');label(ctx,t('Meat not yet added'),cx,compact?h-10:h-68,'#a5b09f',11,'center');}
+ }
  // Front elevation: x and z use one scale. Never exaggerate the height.
  const desiredSW=small?w*.66:w*.28,sw=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/H):desiredSW,sx=small?w*.15:w*(compact?.79:.78)-sw/2,sh=sw*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
  if(s.phase==='ready')label(ctx,t('Meat preview'),sx,sy-25,'#a5b09f',11);

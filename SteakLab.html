@@ -323,7 +323,7 @@ const packs = {en: {
       "Drag an action card to move it in 5-second steps, or focus it and use the left/right arrow keys (Shift moves 30 seconds). Click a card to edit its exact time, type and amount, or turn it off without deleting it. “Add action” opens a new card. “Act now” inserts an action at the displayed time. Moving the stove slider likewise inserts a power change. In a prepared plan, later actions still apply. Open “Edit cooking plan” to modify, add, or remove them. The entire experiment is recalculated; temperatures do not reset when flipping."
     ],
     "power": [
-      "Stove 0–12 — power, not temperature",
+      "Heat input in watts",
       "The steps scale an assumed maximum net power delivered to the pan of 1,800 W, distributed over a circular burner footprint of 9 cm radius. Step 6 gives 900 W. A 3-second lag mimics a responsive hob. There is no thermostat, so an empty pan can become very hot. Real stoves vary, and a ceramic hob often responds more slowly."
     ],
     "oil": [
@@ -624,7 +624,7 @@ class Engine{
   const m=this.mesh,face=nodes=>nodes.reduce((s,n)=>s+this.T[n.i]*n.area,0)/m.area;
   const browns=[],burns=[];
   for(let s=0;s<2;s++){let b=0,c=0;for(let r=0;r<this.doses[s].length;r++){const d=this.doses[s][r],area=m.faceA[r].area;b+=area*(1-Math.exp(-d));c+=area*(1-Math.exp(-Math.max(0,d-3)*.7));}browns.push(100*b/m.area);burns.push(100*c/m.area);}
-  return{time:this.time,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
+  return{time:this.time,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
  }
 }
 globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
@@ -755,7 +755,7 @@ function draw(o){
  // nor the camera center depends on the action, its progress, or the meat side.
  const halfH=H/2,flipLift=Math.max(0,b-halfH);
  const flipTop=Math.hypot(b*se-halfH*ce,b*ce+halfH*se+flipLift*ce)+(halfH+16)*ce;
- const frameAbove=Math.max(154*se+20*ce,flipTop,b*se+(H+78)*ce),frameBelow=Math.max(150*se+6*ce,Math.hypot(b*se+halfH*ce,Math.min(b,halfH)*ce+halfH*se)-halfH*ce);
+ const frameAbove=Math.max(154*se+20*ce,flipTop,b*se+(H+78)*ce),frameBelow=Math.max(170*se+24*ce,Math.hypot(b*se+halfH*ce,Math.min(b,halfH)*ce+halfH*se)-halfH*ce);
  const frameTop=compact?12:84,frameBottom=small?221:compact?h-29:h-89;
  const scale=Math.min(small?(w-48)/330:w*.43/310,(frameBottom-frameTop)/(frameAbove+frameBelow)),cx=small?w*.50:w*(compact?.28:.25),cy=(frameTop+frameBottom+(frameAbove-frameBelow)*scale)/2;
  const project=(x,y,z=0)=>[cx+x*scale,cy+(y*se-z*ce)*scale];
@@ -846,12 +846,15 @@ function draw(o){
   for(let y=-100;y<=100;y+=25){ctx.beginPath();ctx.moveTo(...project(-130,y));ctx.lineTo(...project(130,y));ctx.strokeStyle='#73816b';ctx.lineWidth=2*scale;ctx.stroke();}
   for(const x of [-100,100]){ctx.beginPath();ctx.moveTo(...project(x,-110));ctx.lineTo(...project(x,110));ctx.strokeStyle='#45513f';ctx.lineWidth=3*scale;ctx.stroke();}
  }
+ // The hob is drawn independently of pan temperature; power is net heat input.
+ polygon([project(-170,-155,-22),project(170,-155,-22),project(170,155,-22),project(-170,155,-22)],'#101510','#515c4b');
+ ctx.save();ctx.strokeStyle='#e8a75c';ctx.globalAlpha=.12+.6*Math.min(1,(s.burnerWatts??s.power*150)/1800);ctx.lineWidth=2;for(const r of [76,90]){const q=project(0,0,-21);ctx.beginPath();ctx.ellipse(...q,r*scale,r*scale*se,0,0,Math.PI*2);ctx.stroke();}ctx.restore();
  if(motion?.type==='power'||(motion?.type==='rest'&&motion.value==='pan')){ctx.save();ctx.globalAlpha=.5*Math.sin(Math.PI*p);ctx.shadowColor='#e5a042';ctx.shadowBlur=28;ring(140,-9,'#e2a23c55');ctx.restore();}
  if(takingOff){ctx.save();ctx.globalAlpha=1-ease;drawPan();ctx.globalAlpha=ease;drawRack();ctx.restore();}else if(resting)drawRack();else drawPan();
  if(pouring)drawOilPour();
- // Before Add, show only the separate cross-section preview, leaving the pan empty.
- if(s.phase!=='ready'){
- const base=(s.phase==='ready'?8:.7)+(motion?.type==='add'?70*(1-ease):takingOff?30*Math.sin(Math.PI*p):0),top=project(0,0,base+H),bottom=project(0,0,base);
+ // Keep the unplaced ingredient visibly above the pan, at its true scale.
+ {
+ const base=(s.phase==='ready'?70.7:.7)+(motion?.type==='add'?70*(1-ease):takingOff?30*Math.sin(Math.PI*p):0),top=project(0,0,base+H),bottom=project(0,0,base);
  ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=11;ctx.shadowOffsetY=5;ctx.beginPath();ctx.ellipse(...project(0,0,1),a*scale,b*scale*se,0,0,Math.PI*2);ctx.fillStyle='#11160e77';ctx.fill();ctx.restore();
  let physicalPoint=null;
  if(rotating){
@@ -882,11 +885,11 @@ function draw(o){
  const leadX=cx+a*scale+15,tip=project(a,0,base+H/2);
  ctx.strokeStyle='#d8e8b58c';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(...tip);ctx.lineTo(leadX,tip[1]);ctx.moveTo(leadX,top[1]);ctx.lineTo(leadX,bottom[1]);for(const y of [top[1],bottom[1]]){ctx.moveTo(leadX-3,y);ctx.lineTo(leadX+3,y);}ctx.stroke();
  label(ctx,fmt(H)+' mm',leadX+7,tip[1]+3,'#e0edca',10);
- label(ctx,t('{diameter} cm × {width} cm',{diameter:fmt(c.diameter,1),width:fmt(c.diameter*c.aspect,1)}),cx,small?241:compact?h-10:h-68,'#d8e5c9',11,'center');
+ label(ctx,t('Heat input')+' · '+fmt(s.burnerWatts??s.power*150)+' W',cx,small?241:compact?h-10:h-68,'#d8e5c9',11,'center');
  label(ctx,s.phase==='ready'?'INGREDIENT PREVIEW · WAITING ABOVE THE PAN':resting?'RESTING ON A VIRTUAL RACK':'PAN BASE · 28 cm',cx,small?257:compact?h+20:h-51,'#90a082',small?8:9,'center');
  if(!compact)label(ctx,'28° VIEW · PROPORTIONS TO SCALE',small?16:24,small?53:55,'#788b6d',8);
  if(!compact&&!resting&&s.oil>0)label(ctx,'Oil · thin surface film',small?16:24,small?69:71,'#bdb080',9);
- }else{wall(140,0,154,20,0,Math.PI);ring(154,20,null,'#707c6355');label(ctx,t('Meat not yet added'),cx,compact?h-10:h-68,'#a5b09f',11,'center');}
+ }
  // Front elevation: x and z use one scale. Never exaggerate the height.
  const desiredSW=small?w*.66:w*.28,sw=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/H):desiredSW,sx=small?w*.15:w*(compact?.79:.78)-sw/2,sh=sw*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
  if(s.phase==='ready')label(ctx,t('Meat preview'),sx,sy-25,'#a5b09f',11);
@@ -962,8 +965,8 @@ function preset(name,initial=false){
  duration=780;events.sort((a,b)=>a.time-b.time||a.id-b.id);current=initial?0:clamp(current,0,duration);running=false;syncPlay();$('duration').value=13;document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===name));renderEvents();if(!initial)compute();
 }
 const restNames={air:'Open air',foil:'Foil tent',pan:'On pan · heat off'};
-function eventDescription(e){return eventNames[e.type]+(e.type==='rest'?' · '+(restNames[e.value]||restNames.air):'')+(e.type==='power'?' '+e.value+'/12':e.type==='oil'?' '+e.value+' g':'');}
-function markerLabel(e){return e.type==='power'?e.value+'/12':e.type==='oil'?'Oil · '+e.value+' g':e.type==='add'?'Add':eventNames[e.type];}
+function eventDescription(e){return eventNames[e.type]+(e.type==='rest'?' · '+(restNames[e.value]||restNames.air):'')+(e.type==='power'?' '+Math.round(e.value*150)+' W':e.type==='oil'?' '+e.value+' g':'');}
+function markerLabel(e){return e.type==='power'?Math.round(e.value*150)+' W':e.type==='oil'?'Oil · '+e.value+' g':e.type==='add'?'Add':eventNames[e.type];}
 function freeActionRow(id,time,preferred=0){return SteakDisplay.freeActionRow(events,timelineRows,id,time,preferred,$('eventTrack').clientWidth||420,duration);}
 function setDragGuide(time,row){const guide=$('timelineDragGuide');if(!guide)return;guide.hidden=false;guide.style.left=100*time/duration+'%';guide.querySelector('span').textContent=timeText(time);$('eventTrack').style.setProperty('--drop-row',row);}
 function hideDragGuide(){if($('timelineDragGuide'))$('timelineDragGuide').hidden=true;$('eventTrack').style.removeProperty('--drop-row');}
@@ -990,17 +993,17 @@ function renderEvents(){
 let editedEvent=null,dragEvent=null,suppressTimelineClickUntil=0,lastDraggedId=null;
 function eventEditorType(resetValue=false){
  const type=$('editActionType').value,numeric=['power','oil'].includes(type);
- $('editAmountField').hidden=!numeric;$('editRestField').hidden=type!=='rest';$('editAmountLabel').textContent=t(type==='power'?'Power':'Amount');$('editActionAmount').setAttribute('aria-label',t(type==='power'?'Stove setting':'Oil (grams)'));$('editActionAmount').max=type==='power'?12:30;
- if(resetValue)$('editActionAmount').value=type==='power'?6:10;
+ $('editAmountField').hidden=!numeric;$('editRestField').hidden=type!=='rest';$('editAmountLabel').textContent=t(type==='power'?'Power':'Amount');$('editActionAmount').setAttribute('aria-label',t(type==='power'?'Heat input (watts)':'Oil (grams)'));$('editActionAmount').max=type==='power'?1800:30;$('editActionAmount').step=type==='power'?150:1;
+ if(resetValue)$('editActionAmount').value=type==='power'?900:10;
  const hints={power:'Set the stove power from this moment onward. It stays there until the next stove action.',oil:'Add this amount of oil at the chosen time.',add:'Place the ingredient on the pan, with side A facing down.',flip:'Turn the meat over once. Its temperature and crust stay with each physical side.',rest:'Choose how the meat rests. Open air and foil remove it from the pan; staying on the pan switches the stove off while the hot metal keeps transferring heat.'};
  $('editActionHint').textContent=t(hints[type]);$('editActionSymbol').innerHTML=icon(eventIcons[type]);$('editActionSymbol').className='event-editor-symbol event-'+type;updateEditorAmount();
 }
-function updateEditorAmount(){const input=$('editActionAmount');rangeFill(input);$('editAmountValue').textContent=input.value+($('editActionType').value==='power'?' / 12':' g');}
+function updateEditorAmount(){const input=$('editActionAmount');rangeFill(input);$('editAmountValue').textContent=input.value+($('editActionType').value==='power'?' W':' g');}
 function openEventEditor(id=null,type='flip',atTime=null){
  closeActionEditor();$('planDialog').close();editedEvent=events.find(e=>e.id===id)||null;if(!editedEvent&&events.length>=80){toast('A plan can contain up to 80 actions.');return;}
  const entry=editedEvent||{id:eventID++,time:atTime??Math.round(current),type,enabled:true,value:type==='power'?6:type==='oil'?10:type==='rest'?'air':undefined};if(!editedEvent){events.push(entry);editedEvent=entry;manualAnimation=entry.id;changedEvents();}
  running=false;clearMotion();syncPlay();$('eventDialogTitle').textContent=t(eventNames[entry.type]);$('saveAction').hidden=true;
- $('editActionType').value=entry.type;$('editActionName').textContent=t(eventNames[entry.type]);$('editRestMode').value=restNames[entry.value]?entry.value:'air';$('editActionTime').value=entry.time;$('editActionAmount').value=Number.isFinite(entry.value)?entry.value:10;$('editActionEnabled').checked=entry.enabled!==false;$('deleteAction').hidden=!editedEvent;$('actionError').hidden=true;eventEditorType();
+ $('editActionType').value=entry.type;$('editActionName').textContent=t(eventNames[entry.type]);$('editRestMode').value=restNames[entry.value]?entry.value:'air';$('editActionTime').value=entry.time;$('editActionAmount').max=entry.type==='power'?1800:30;$('editActionAmount').step=entry.type==='power'?150:1;$('editActionAmount').value=Number.isFinite(entry.value)?entry.value*(entry.type==='power'?150:1):10;$('editActionEnabled').checked=entry.enabled!==false;$('deleteAction').hidden=!editedEvent;$('actionError').hidden=true;eventEditorType();
  editorAnchor=editedEvent?document.querySelector('[data-event-id="'+editedEvent.id+'"]'):document.querySelector('[data-tool="'+type+'"]');
  if(SteakI18n.locale!=='en')SteakI18n.localize();if(!$('eventDialog').open)$('eventDialog').show();positionEventEditor();if(['power','oil'].includes(entry.type))$('editActionAmount').focus();else $('cancelAction').focus();
 }
@@ -1031,7 +1034,7 @@ async function suggestPlan(){
 }
 function renderSuggestion(){const box=$('suggestionSummary'),chip=$('planSummaryChip');if(!suggestion||suggestion.key!==planKey()){box.hidden=true;chip.hidden=true;return;}box.hidden=false;chip.hidden=false;const p=suggestion;chip.textContent=t('Suggested: rest at {time} · peak core {temp} °C',{time:timeText(p.removed),temp:fmt(p.predicted.peak,1)});box.innerHTML=`<strong>${t(p.reached?'YOUR MODEL-BASED PLAN':'TARGET NOT REACHED IN 45 MIN')}</strong><div>${t('Preheat contact area to {temp} °C',{temp:p.preheat})} · ${t('add at {time}',{time:timeText(p.placed)})}</div><div>${t('Flip every minute · rest from {time}',{time:timeText(p.removed)})}</div><div>${t('Rest for {time}',{time:timeText(p.restSeconds)})}</div><p>${t('Predicted peak core: {temp} °C',{temp:fmt(p.predicted.peak,1)})}<br>${t('Core when removed: {temp} °C',{temp:fmt(p.predicted.atRemoval,1)})}<br>${t('Coldest point when removed: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)})}</p><small>${t('This targets the simulated center, not proven safe cooking. Use a real thermometer and the guidance below.')}</small>`;}
 function requestCompute(){clearTimeout(computeTimer);running=false;syncPlay();computeTimer=setTimeout(compute,120);}
-function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
+function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
 function syncPlay(){$('play').innerHTML=icon(running?'pause':'play')+(running?'Pause':current>=duration?'Play again':current>0?'Continue':'Start experiment');}
 function seek(t){clearMotion();current=clamp(t,0,duration);running=false;syncPlay();render();}
 function scheduleNow(type,value){if(!result||pending)return;const phase=frame.s.phase;if(type==='add'&&phase!=='ready'||['flip','rest'].includes(type)&&phase!=='cooking'){toast(type==='add'?'The ingredient is already on the pan.':'Add the ingredient to the pan first.');return;}const t=Math.round(current);if(type==='power')events=events.filter(e=>!(e.type==='power'&&e.time===t));const event={id:eventID++,time:t,type,value};events.push(event);manualAnimation=event.id;$('scenarioSelect').value='custom';events.sort((a,b)=>a.time-b.time||a.id-b.id);renderEvents();compute();toast(eventDescription({type,value})+' at '+timeText(t)+' was added to the plan.');}
@@ -1150,7 +1153,7 @@ $('eventTrack').onpointercancel=()=>{if(!dragEvent)return;dragEvent=null;suppres
 function closeActionEditor(){if(editedEvent&&$('eventDialog').open)applyActionEditor();$('eventDialog').close();}
 $('cancelAction').onclick=closeActionEditor;
 $('deleteAction').onclick=()=>{if(!editedEvent)return;clearTimeout(editorApplyTimer);events=events.filter(e=>e.id!==editedEvent.id);editedEvent=null;$('eventDialog').close();changedEvents();toast('Action removed from the cooking plan.');};
-function applyActionEditor(close=false){clearTimeout(editorApplyTimer);const type=editedEvent?.type||$('editActionType').value,value=type==='rest'?$('editRestMode').value:+$('editActionAmount').value,time=+$('editActionTime').value,numeric=['power','oil'].includes(type);
+function applyActionEditor(close=false){clearTimeout(editorApplyTimer);const type=editedEvent?.type||$('editActionType').value,value=type==='rest'?$('editRestMode').value:+$('editActionAmount').value/(type==='power'?150:1),time=+$('editActionTime').value,numeric=['power','oil'].includes(type);
  let error=!Number.isFinite(time)||time>duration?'Use mm:ss within the experiment duration.':numeric&&(!Number.isInteger(value)||value<0||value>(type==='power'?12:30))?'Enter a whole number within the shown range.':'';
  $('actionError').hidden=!error;$('actionError').textContent=t(error);if(error)return;
  const entry=editedEvent||{id:eventID++},before=JSON.stringify(entry);Object.assign(entry,{time,type,value:numeric||type==='rest'?value:undefined,enabled:$('editActionEnabled').checked});if(!editedEvent){events.push(entry);manualAnimation=entry.id;editedEvent=entry;}$('saveAction').textContent=t('Done');$('deleteAction').hidden=false;
@@ -1172,7 +1175,7 @@ $('reset').onclick=()=>{config={...SteakPhysics.DEFAULTS};target=56;reference=nu
 $('history').onclick=e=>{if(!result)return;const r=$('history').getBoundingClientRect();seek(clamp((e.clientX-r.left-42)/(r.width-61),0,1)*duration);};
 $('history').onpointermove=e=>{if(!result)return;const r=$('history').getBoundingClientRect(),t=clamp((e.clientX-r.left-42)/(r.width-61),0,1)*duration,s=snapshotAt(t).s;$('historyReadout').textContent=`${timeText(t)} · Pan ${fmt(s.pan)}° · A ${fmt(s.faceA)}° · Core ${fmt(s.core,1)}° · B ${fmt(s.faceB)}°`;};
 $('history').onpointerleave=()=>$('historyReadout').textContent='Click the chart to explore. Dashed lines show the target and saved core curve.';
-$('exportCsv').onclick=()=>{if(!result||pending)return;const rows=['# SteakLab;simulated data;not calibrated','# Configuration;'+JSON.stringify(config),'# Actions;'+JSON.stringify(events),'time_s;pan_mean_C;side_A_C;core_C;side_B_C;coldest_C;browning_A_pct;browning_B_pct;evaporated_g;stove_setting;phase',...result.snapshots.map(p=>[p.s.time,p.s.pan,p.s.faceA,p.s.core,p.s.faceB,p.s.min,p.s.brownA,p.s.brownB,p.s.evaporated,p.s.power].map(v=>Number(v).toFixed(3)).join(';')+';'+p.s.phase)];const url=URL.createObjectURL(new Blob(['\ufeff'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='SteakLab-experiment.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+$('exportCsv').onclick=()=>{if(!result||pending)return;const rows=['# SteakLab;simulated data;not calibrated','# Configuration;'+JSON.stringify(config),'# Actions;'+JSON.stringify(events),'time_s;pan_mean_C;side_A_C;core_C;side_B_C;coldest_C;browning_A_pct;browning_B_pct;evaporated_g;heat_input_W;phase',...result.snapshots.map(p=>[p.s.time,p.s.pan,p.s.faceA,p.s.core,p.s.faceB,p.s.min,p.s.brownA,p.s.brownB,p.s.evaporated,p.s.burnerWatts].map(v=>Number(v).toFixed(3)).join(';')+';'+p.s.phase)];const url=URL.createObjectURL(new Blob(['\ufeff'+rows.join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='SteakLab-experiment.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 window.addEventListener('resize',()=>{layoutEvents();if(result)render();positionEventEditor();});
 $('timelineScroll').addEventListener('scroll',()=>{if($('eventDialog').open)closeActionEditor();});
 function clearMotion(){actionMotion=null;motionQueue=[];if($('actionCue'))$('actionCue').hidden=true;document.querySelectorAll('.active-action').forEach(b=>b.classList.remove('active-action'));}

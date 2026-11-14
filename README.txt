@@ -10,11 +10,14 @@ QUICK START
 2. Choose a doneness target, then click "Suggest cooking plan" if desired.
 3. Drag tools onto the time axis. Every action remains a separate icon.
    Horizontal position sets time; the vertical drag guide shows the exact time.
-4. Click an icon for a small popup beside it. Heat and oil use sliders.
+4. Click an icon for a small popup beside it. Heat (0–1,800 W) and oil use sliders.
    Changes apply directly. Toggle inclusion or remove the action there.
    No separate time field or Save step is needed.
 5. Clear removes all cooking actions; Undo restores the cleared plan.
 6. Editing preserves the viewing time, including at the end of the run.
+The meat waits visibly above the pan until Add. The hob label shows current
+net heat input, including its response lag; this is not electrical rated power.
+
 7. "Temperature profile" stays fixed with B up and A down. Its temperature range
    is fixed for the whole run. The 3D camera stays fixed during flips too.
 8. The vertical color scale between the pan and section gives 84% of its

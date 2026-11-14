@@ -63,7 +63,7 @@ const packs = {en: {
       "Drag an action card to move it in 5-second steps, or focus it and use the left/right arrow keys (Shift moves 30 seconds). Click a card to edit its exact time, type and amount, or turn it off without deleting it. “Add action” opens a new card. “Act now” inserts an action at the displayed time. Moving the stove slider likewise inserts a power change. In a prepared plan, later actions still apply. Open “Edit cooking plan” to modify, add, or remove them. The entire experiment is recalculated; temperatures do not reset when flipping."
     ],
     "power": [
-      "Stove 0–12 — power, not temperature",
+      "Heat input in watts",
       "The steps scale an assumed maximum net power delivered to the pan of 1,800 W, distributed over a circular burner footprint of 9 cm radius. Step 6 gives 900 W. A 3-second lag mimics a responsive hob. There is no thermostat, so an empty pan can become very hot. Real stoves vary, and a ceramic hob often responds more slowly."
     ],
     "oil": [
