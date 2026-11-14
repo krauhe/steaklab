@@ -30,7 +30,6 @@ const fields=[
  {id:'diameter',name:'Diameter · major axis',min:8,max:22,step:.5,unit:'cm',ends:['Small','Large']},
  {id:'aspect',name:'Shape · ellipse',min:.45,max:1,step:.01,unit:'',ends:['Oval','Round']},
  {id:'initial',name:'Initial temperature',min:0,max:30,step:1,unit:'°C',ends:['Fridge-cold','Warmer start']},
- {id:'wetness',name:'Surface moisture',min:0,max:1,step:.05,unit:'',ends:['Patted dry','Wet']},
  {id:'contact',name:'Contact heat transfer',min:.5,max:1.5,step:.05,unit:'×',ends:['Loose / uneven','Good contact']}
 ];
 function fieldValue(f){return f.id==='wetness'?`${fmt(config[f.id]*100)} %`:f.id==='aspect'?`${fmt(config[f.id],2)} · ${fmt(config.diameter*config.aspect,1)} cm`:fmt(config[f.id],f.step<1?f.id==='contact'?2:f.id==='diameter'?1:0:0)+' '+f.unit;}
@@ -167,7 +166,7 @@ function drawScene(){
  const width=$('scene').getBoundingClientRect().width,compact=matchMedia('(min-width:1100px) and (min-height:620px)').matches,sectionHeight=width*.66*config.thickness/(config.diameter*10);
  $('scene').parentElement.style.height=compact?'':(width<560?384+sectionHeight:350)+'px';
  const {ctx,w,h}=canvasSetup('scene');
- SteakScene.draw({ctx,w,h,compact,config,frame,mesh,panMesh:result.panMesh,T:drawField,sample,heatRGB,texture,rasterEllipse,label,fmt,showMesh:$('showMesh').checked,mode:view,t,motion:actionMotion});
+ SteakScene.draw({ctx,w,h,compact,config,frame,mesh,panMesh:result.panMesh,T:drawField,sample,heatRGB,texture,rasterEllipse,label,fmt,mode:view,t,motion:actionMotion});
 }
 function axes(ctx,w,h,ymax,xmax,xlabel){const l=42,r=19,t=22,b=31;const X=v=>l+v/xmax*(w-l-r),Y=v=>h-b-v/ymax*(h-t-b);ctx.lineWidth=1;for(let i=0;i<=4;i++){const v=i*ymax/4,y=Y(v);ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(w-r,y);ctx.strokeStyle=palette.grid;ctx.stroke();label(ctx,fmt(v),l-9,y+3,palette.text,9,'right');}for(let i=0;i<=4;i++)label(ctx,fmt(i*xmax/4,i*xmax/4%1?1:0),X(i*xmax/4),h-12,palette.text,9,'center');label(ctx,'°C',l-12,12,palette.text,9,'right');return{X,Y,l,r,t,b};}
 function temperatureGradient(ctx,x0,y0,x1,y1,maxT){
@@ -208,8 +207,6 @@ function drawProfile(){
 
 // All controls change model inputs or the deterministic action schedule.
 makeFields();fillIcons();updateColorScale();preset('classic',true);syncInputs();
-$('showActions').checked=!matchMedia('(prefers-reduced-motion: reduce)').matches;
-$('showActions').onchange=()=>{if(!$('showActions').checked){clearMotion();if(result)drawScene();}};
 $('scaleMode').onchange=()=>{colorMode=$('scaleMode').value;updateColorScale();if(result){drawScene();drawHistory();drawProfile();}};
 $('scenarioSelect').onchange=()=>preset($('scenarioSelect').value);
 $('openPlan').onclick=()=>$('planDialog').showModal();$('closePlan').onclick=()=>$('planDialog').close();
@@ -228,7 +225,7 @@ for(const f of fields)$(f.id).addEventListener('input',()=>{config[f.id]=+$(f.id
 $('panType').onchange=()=>{config.pan=$('panType').value;requestCompute();};
 document.querySelectorAll('[data-meat]').forEach(b=>b.onclick=()=>{config.meat=b.dataset.meat;target={beef:56,pork:63,chicken:75,fish:63}[config.meat];syncInputs();requestCompute();});
 $('target').oninput=()=>{target=+$('target').value;rangeFill($('target'));updateTarget();};
-document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',x===b);});if(result)drawScene();});$('showMesh').onchange=()=>result&&drawScene();
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',x===b);});if(result)drawScene();});
 $('play').onclick=()=>{if(pending){toast('The experiment is being calculated.');return;}if(current>=duration)current=0;if(running)clearMotion();running=!running;primePlayback=running&&current===0;lastFrame=performance.now();syncPlay();};
 $('restart').onclick=()=>seek(0);$('scrub').oninput=()=>seek(+$('scrub').value);
 document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>scheduleNow(b.dataset.action,b.dataset.action==='oil'?10:undefined));
@@ -274,13 +271,13 @@ function nextMotion(now){
  $('actionCue').hidden=false;$('actionCue').innerHTML=icon(eventIcons[action.type])+t(eventDescription(action));
  document.querySelectorAll('[data-event-ids]').forEach(b=>b.classList.toggle('active-action',b.dataset.eventIds.split(',').includes(String(action.id))));
 }
-function queueMotions(actions,now){if(!$('showActions').checked||!actions.length)return;motionQueue.push(...actions.filter(e=>e.enabled!==false));if(!actionMotion)nextMotion(now);}
+function queueMotions(actions,now){if(!actions.length)return;motionQueue.push(...actions.filter(e=>e.enabled!==false));if(!actionMotion)nextMotion(now);}
 function validMotion(e){return e.enabled!==false&&!result.warnings.some(w=>w.type===e.type&&Math.abs(w.time-e.time)<1e-6);}
 function animate(now){
  if(actionMotion&&!pending){actionMotion.progress=clamp((now-actionMotion.started)/actionMotion.ms,0,1);drawScene();if(actionMotion.progress>=1)nextMotion(now);}
  if(running&&!pending&&result&&!actionMotion){
   const delta=Math.min((now-lastFrame)/1000,.2),until=Math.min(duration,current+delta*+$('speed').value);
-  const crossing=$('showActions').checked?events.filter(e=>validMotion(e)&&((e.time>current+1e-8&&e.time<=until)||(primePlayback&&e.time===0))):[];
+  const crossing=events.filter(e=>validMotion(e)&&((e.time>current+1e-8&&e.time<=until)||(primePlayback&&e.time===0)));
   primePlayback=false;
   if(crossing.length){current=crossing[0].time;render();queueMotions(crossing.filter(e=>Math.abs(e.time-current)<1e-8),now);}
   else{current=until;if(now-lastPaint>45){render();lastPaint=now;}}

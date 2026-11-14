@@ -4,7 +4,7 @@
 'use strict';
 const sectionCanvas=document.createElement('canvas');
 function draw(o){
- const {ctx,w,h,config:c,frame,mesh,panMesh=null,T,sample,heatRGB,texture,rasterEllipse,label,fmt,showMesh,mode,t,compact=false,motion=null}=o;
+ const {ctx,w,h,config:c,frame,mesh,panMesh=null,T,sample,heatRGB,texture,rasterEllipse,label,fmt,mode,t,compact=false,motion=null}=o;
  const s=frame.s,small=!compact&&w<560,elevation=28*Math.PI/180,se=Math.sin(elevation),ce=Math.cos(elevation);
  const a=c.diameter*5,b=a*c.aspect,H=c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
  const theta=(s.bottomSide===0?0:Math.PI)-Math.PI+Math.PI*ease;
@@ -29,7 +29,7 @@ function draw(o){
   }return value;
  }
  const rimR=panMesh?.outerRadius??.154,wallH=panMesh?.wallHeight??.02,floorR=panMesh?.R??.14;
- const panTone=(shade=1,temp=panAt(rimR,wallH))=>'rgb('+heatRGB(temp).map(v=>Math.round(v*shade)).join(',')+')';
+ const panTone=(shade=1,temp=panAt(rimR,wallH))=>'rgb('+heatRGB(temp).map((v,i)=>Math.round((v*.28+[42,49,44][i]*.72)*shade)).join(',')+')';
  const polygon=(points,fill,stroke)=>{ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=.7;ctx.stroke();}};
  const ring=(r,z,fill,stroke)=>{const p=project(0,0,z);ctx.beginPath();ctx.ellipse(...p,r*scale,r*scale*se,0,0,Math.PI*2);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}};
  function wall(r1,z1,r2,z2,start,end,front=false){
@@ -80,20 +80,24 @@ function draw(o){
   ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=19;ctx.shadowOffsetY=10;ring(151,-5,'#0c100c');ctx.restore();
   wall(154,20,150,-6,0,Math.PI,true);ring(154,20,panRGB?panTone():'#273027');wall(154,20,140,0,Math.PI,Math.PI*2);
   const coating=c.pan==='nonstick'?['#262c29','#161c19','#2c332e']:c.pan==='hybrid'?['#2b312e','#1a201d','#303832']:['#303930','#252e25','#354032'];
+  const floor=ctx.createLinearGradient(cx,cy-80*scale,cx,cy+70*scale);floor.addColorStop(0,coating[0]);floor.addColorStop(.6,coating[1]);floor.addColorStop(1,coating[2]);ring(140,0,floor);
   if(panRGB){
+   ctx.save();ctx.globalAlpha=.28;
+   const heatRing=(r0,r1,temp)=>{const center=project(0,0);ctx.beginPath();ctx.ellipse(...center,r1*1000*scale,r1*1000*scale*se,0,0,Math.PI*2);if(r0>0)ctx.ellipse(...center,r0*1000*scale,r0*1000*scale*se,0,0,Math.PI*2,true);ctx.fillStyle='rgb('+heatRGB(temp).join(',')+')';ctx.fill('evenodd');};
    const floorNodes=panNodes.map((node,index)=>({node,index})).filter(({node})=>node.part==='bottom');
-   if(floorNodes.length){for(let j=floorNodes.length-1;j>=0;j--){const {node,index}=floorNodes[j];ring(node.r1*1000,0,panTone(1,panField[index]));}}
-   else for(let j=35;j>=0;j--)ring(floorR*1000*(j+1)/36,0,panTone(1,panAt(floorR*(j+.5)/36,0)));
-  }else{const floor=ctx.createLinearGradient(cx,cy-80*scale,cx,cy+70*scale);floor.addColorStop(0,coating[0]);floor.addColorStop(.6,coating[1]);floor.addColorStop(1,coating[2]);ring(140,0,floor);}
-  if(!panRGB&&c.pan==='hybrid'){
+   if(floorNodes.length){for(let j=floorNodes.length-1;j>=0;j--){const {node,index}=floorNodes[j];heatRing(node.r0,node.r1,panField[index]);}}
+   else for(let j=35;j>=0;j--)heatRing(floorR*j/36,floorR*(j+1)/36,panAt(floorR*(j+.5)/36,0));
+   ctx.restore();
+  }
+  if(c.pan==='hybrid'){
    ctx.save();const q=project(0,0);ctx.beginPath();ctx.ellipse(...q,139*scale,139*scale*se,0,0,Math.PI*2);ctx.clip();ctx.beginPath();
    const r=6,stepY=Math.sqrt(3)*r;for(let col=-16;col<=16;col++)for(let row=-15;row<=15;row++){const x=col*r*1.5,y=(row+(col%2)/2)*stepY;for(let k=0;k<6;k++){const v=project(x+r*Math.cos(k*Math.PI/3),y+r*Math.sin(k*Math.PI/3));k?ctx.lineTo(...v):ctx.moveTo(...v);}ctx.closePath();}
    ctx.strokeStyle='#a9b3aa42';ctx.lineWidth=Math.max(.38,.55*scale);ctx.stroke();ctx.restore();
   }
   // A thin sheen on the existing floor, not another circular pool/ring.
-  if(s.oil>0&&!panRGB){const oil=ctx.createLinearGradient(cx-130*scale,cy-30*scale,cx+130*scale,cy+30*scale);oil.addColorStop(0,'#ddc46d03');oil.addColorStop(.45,'#e1c66e27');oil.addColorStop(.7,'#f4d88f0c');oil.addColorStop(1,'#d1b96216');ring(139,0,oil);}
+  if(s.oil>0){const oil=ctx.createLinearGradient(cx-130*scale,cy-30*scale,cx+130*scale,cy+30*scale);oil.addColorStop(0,'#ddc46d03');oil.addColorStop(.45,'#e1c66e27');oil.addColorStop(.7,'#f4d88f0c');oil.addColorStop(1,'#d1b96216');ring(139,0,oil);}
   if(pouring)drawOilPool();
-  if(!panRGB&&c.pan==='grill'){ctx.save();const p=project(0,0);ctx.beginPath();ctx.ellipse(...p,139*scale,139*scale*se,0,0,Math.PI*2);ctx.clip();for(let x=-130;x<=130;x+=17){ctx.beginPath();ctx.moveTo(...project(x,-140));ctx.lineTo(...project(x,140));ctx.strokeStyle='#111910';ctx.lineWidth=5*scale;ctx.stroke();ctx.strokeStyle='#69715a55';ctx.lineWidth=1;ctx.stroke();}ctx.restore();}
+  if(c.pan==='grill'){ctx.save();const p=project(0,0);ctx.beginPath();ctx.ellipse(...p,139*scale,139*scale*se,0,0,Math.PI*2);ctx.clip();for(let x=-130;x<=130;x+=17){ctx.beginPath();ctx.moveTo(...project(x,-140));ctx.lineTo(...project(x,140));ctx.strokeStyle='#111910';ctx.lineWidth=5*scale;ctx.stroke();ctx.strokeStyle='#69715a55';ctx.lineWidth=1;ctx.stroke();}ctx.restore();}
  }
  function drawRack(){
   for(let y=-100;y<=100;y+=25){ctx.beginPath();ctx.moveTo(...project(-130,y));ctx.lineTo(...project(130,y));ctx.strokeStyle='#73816b';ctx.lineWidth=2*scale;ctx.stroke();}
@@ -102,7 +106,8 @@ function draw(o){
  if(motion?.type==='power'||(motion?.type==='rest'&&motion.value==='pan')){ctx.save();ctx.globalAlpha=.5*Math.sin(Math.PI*p);ctx.shadowColor='#e5a042';ctx.shadowBlur=28;ring(140,-9,'#e2a23c55');ctx.restore();}
  if(takingOff){ctx.save();ctx.globalAlpha=1-ease;drawPan();ctx.globalAlpha=ease;drawRack();ctx.restore();}else if(resting)drawRack();else drawPan();
  if(pouring)drawOilPour();
- // Lift the ingredient preview while it is waiting; dimensions stay unchanged.
+ // Before Add, show only the separate cross-section preview, leaving the pan empty.
+ if(s.phase!=='ready'){
  const base=(s.phase==='ready'?8:.7)+(motion?.type==='add'?70*(1-ease):takingOff?30*Math.sin(Math.PI*p):0),top=project(0,0,base+H),bottom=project(0,0,base);
  ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=11;ctx.shadowOffsetY=5;ctx.beginPath();ctx.ellipse(...project(0,0,1),a*scale,b*scale*se,0,0,Math.PI*2);ctx.fillStyle='#11160e77';ctx.fill();ctx.restore();
  let physicalPoint=null;
@@ -138,15 +143,16 @@ function draw(o){
  label(ctx,s.phase==='ready'?'INGREDIENT PREVIEW · WAITING ABOVE THE PAN':resting?'RESTING ON A VIRTUAL RACK':'PAN BASE · 28 cm',cx,small?257:compact?h+20:h-51,'#90a082',small?8:9,'center');
  if(!compact)label(ctx,'28° VIEW · PROPORTIONS TO SCALE',small?16:24,small?53:55,'#788b6d',8);
  if(!compact&&!resting&&s.oil>0)label(ctx,'Oil · thin surface film',small?16:24,small?69:71,'#bdb080',9);
+ }else{wall(140,0,154,20,0,Math.PI);ring(154,20,null,'#707c6355');label(ctx,t('Meat not yet added'),cx,compact?h-10:h-68,'#a5b09f',11,'center');}
  // Front elevation: x and z use one scale. Never exaggerate the height.
  const desiredSW=small?w*.66:w*.28,sw=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/H):desiredSW,sx=small?w*.15:w*(compact?.79:.78)-sw/2,sh=sw*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
+ if(s.phase==='ready')label(ctx,t('Meat preview'),sx,sy-25,'#a5b09f',11);
  if(!compact)label(ctx,compact?'CENTER SECTION':'CENTER SECTION · TRUE PROPORTIONS',sx,sy-(compact?25:43),'#bdcbae',small?8:9);
  if(!compact)label(ctx,'Same scale for diameter and thickness',sx,sy-27,'#788b6d',8);
  const surface=sectionCanvas;surface.width=240;surface.height=Math.max(12,Math.ceil(sh*2));const oc=surface.getContext('2d'),im=oc.createImageData(surface.width,surface.height);
  for(let y=0;y<surface.height;y++)for(let x=0;x<240;x++){const r=Math.abs(x/239*2-1),z=s.bottomSide===0?1-y/(surface.height-1):y/(surface.height-1),rgb=heatRGB(sample(r,z)),i=4*(y*240+x);im.data[i]=rgb[0];im.data[i+1]=rgb[1];im.data[i+2]=rgb[2];im.data[i+3]=255;}oc.putImageData(im,0,0);
  const xy=(r,z,sign=1)=>[sx+sw/2+sign*r/mesh.R*sw/2,sy+(s.bottomSide===0?1-z/mesh.H:z/mesh.H)*sh];
  ctx.save();ctx.beginPath();ctx.rect(sx,sy,sw,sh);ctx.clip();ctx.drawImage(surface,sx,sy,sw,sh);
- if(showMesh){ctx.strokeStyle='#fff4';ctx.lineWidth=.45;for(const tri of mesh.triangles)for(const sign of [-1,1]){ctx.beginPath();tri.forEach((idx,k)=>{const n=mesh.nodes[idx],p=xy(n.r,n.z,sign);k?ctx.lineTo(...p):ctx.moveTo(...p);});ctx.closePath();ctx.stroke();}}
  for(const level of [40,55,65,100,140,180]){ctx.beginPath();for(const tri of mesh.triangles){const points=[];for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3],ta=T[a],tb=T[b];if((ta<=level&&tb>level)||(tb<=level&&ta>level)){const f=(level-ta)/(tb-ta),na=mesh.nodes[a],nb=mesh.nodes[b];points.push({r:na.r+(nb.r-na.r)*f,z:na.z+(nb.z-na.z)*f});}}if(points.length===2)for(const sign of [-1,1])points.forEach((p,k)=>k?ctx.lineTo(...xy(p.r,p.z,sign)):ctx.moveTo(...xy(p.r,p.z,sign)));}ctx.strokeStyle='#f5f7d7b0';ctx.lineWidth=.85;ctx.stroke();}
  ctx.restore();ctx.strokeStyle='#c6dca077';ctx.lineWidth=.8;ctx.strokeRect(sx,sy,sw,sh);
  const labels=[];for(const level of [40,55,65,100,140,180]){let prev=sample(.55,s.bottomSide===0?1:0)-level;for(let k=1;k<=100;k++){const v=sample(.55,s.bottomSide===0?1-k/100:k/100)-level;if(prev*v<0){const y=sy+sh*k/100;if(y>sy+5&&y<sy+sh-5&&!labels.some(a=>Math.abs(a-y)<11)){labels.push(y);ctx.fillStyle='#102016b0';ctx.fillRect(sx+sw*.75-12,y-5,25,10);label(ctx,level+'°',sx+sw*.75,y+3,'#eff7df',8,'center');}}prev=v;}}
