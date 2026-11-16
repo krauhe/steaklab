@@ -22,10 +22,42 @@ const PANS={iron:{label:'Cast iron',mass:2,cp:460,k:55,rho:7200,emissivity:.75},
 // Loose foil is represented only by reduced effective heat loss to the room.
 // No foil heat capacity, condensation, moisture trapping or seal is resolved.
 const REST_MODES={air:{convection:1,radiation:1},foil:{convection:.4,radiation:.5},pan:{convection:1,radiation:1}};
-const DEFAULTS={meat:'beef',thickness:25,diameter:14,aspect:.78,initial:5,pan:'iron',wetness:.5,contact:1,nr:18,nz:24,panNr:14,panNw:4,ambient:22,panInitial:22,losses:true,evaporation:true,panRadiation:true};
+const DEFAULTS={meat:'beef',thickness:25,diameter:14,aspect:.78,initial:5,pan:'iron',wetness:.5,contact:1,nr:18,nz:24,panNr:14,panNw:4,ambient:22,panInitial:22,maxHeatWatts:1800,powerExponent:1,losses:true,evaporation:true,panRadiation:true};
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 function number(v,fallback,lo,hi){return Number.isFinite(+v)?clamp(+v,lo,hi):fallback;}
-function normalized(input){const c={...DEFAULTS,...input};for(const [key,lo,hi] of [['thickness',8,60],['diameter',8,22],['aspect',.45,1],['initial',0,30],['wetness',0,1],['contact',.5,1.5],['ambient',0,40],['panInitial',0,400],['nr',6,48],['nz',8,64],['panNr',6,64],['panNw',2,16]])c[key]=number(c[key],DEFAULTS[key],lo,hi);c.nr=2*Math.round(c.nr/2);c.nz=2*Math.round(c.nz/2);c.panNr=Math.round(c.panNr);c.panNw=Math.round(c.panNw);if(!MATERIALS[c.meat])c.meat='beef';if(!PANS[c.pan])c.pan='iron';return c;}
+function normalized(input){const c={...DEFAULTS,...input};for(const [key,lo,hi] of [['thickness',8,60],['diameter',8,22],['aspect',.45,1],['initial',0,30],['wetness',0,1],['contact',.5,1.5],['ambient',0,40],['panInitial',0,400],['maxHeatWatts',100,6000],['powerExponent',.5,3],['nr',6,48],['nz',8,64],['panNr',6,64],['panNw',2,16]])c[key]=number(c[key],DEFAULTS[key],lo,hi);c.nr=2*Math.round(c.nr/2);c.nz=2*Math.round(c.nz/2);c.panNr=Math.round(c.panNr);c.panNw=Math.round(c.panNw);if(!MATERIALS[c.meat])c.meat='beef';if(!PANS[c.pan])c.pan='iron';return c;}
+// One litre of water plus the selected pan, both starting at the same temperature.
+// A lumped inverse estimate of pan input, not electrical nameplate power.
+// Convection (8 W/m²K) and radiation from exposed water and outer pan surfaces
+// are estimated. Evaporation, hob warm-up and pan gradients are not resolved.
+// A single maximum-setting test cannot determine powerExponent or hob lag.
+function estimateBoilCalibration({seconds,startTemperature=20,boilingTemperature=100,ambient=20,pan='iron',diameter=28}={}){
+ for(const [name,value,lo,hi] of [['seconds',seconds,30,1800],['startTemperature',startTemperature,0,60],['boilingTemperature',boilingTemperature,80,100],['ambient',ambient,0,40],['diameter',diameter,16,40]]){
+  if(typeof value!=='number'||!Number.isFinite(value)||value<lo||value>hi)throw new RangeError(`Invalid ${name} for the one-litre boil test.`);
+ }
+ if(!Object.hasOwn(PANS,pan)||boilingTemperature<=startTemperature)throw new RangeError('Invalid pan or temperature rise for the one-litre boil test.');
+ const material=PANS[pan],capacity=4180+material.mass*material.cp;
+ // Diameter controls the test's exposed areas only. Preset mass remains fixed;
+ // this does not resize the separate spatial cooking-pan mesh.
+ const radius=diameter/200,waterArea=PI*radius**2,panArea=waterArea+PI*(2*radius+.014)*Math.hypot(.014,.02);
+ const loss=T=>8*(waterArea+panArea)*(T-ambient)+SIGMA*(.96*waterArea+material.emissivity*panArea)*((T+273.15)**4-(ambient+273.15)**4);
+ const storedWatts=capacity*(boilingTemperature-startTemperature)/seconds;
+ const steps=Math.ceil(seconds/.5),dt=seconds/steps;
+ function endTemperature(watts){
+  let T=startTemperature;
+  const rate=t=>(watts-loss(t))/capacity;
+  for(let i=0;i<steps;i++){
+   const a=rate(T),b=rate(T+dt*a/2),c=rate(T+dt*b/2),d=rate(T+dt*c);
+   T+=dt*(a+2*b+2*c+d)/6;
+  }
+  return T;
+ }
+ let lo=0,hi=storedWatts+Math.max(0,loss(startTemperature),loss(boilingTemperature));
+ if(endTemperature(lo)>boilingTemperature)throw new RangeError('Boil test cannot identify a positive heating input.');
+ for(let i=0;i<45;i++){const mid=(lo+hi)/2;if(endTemperature(mid)<boilingTemperature)lo=mid;else hi=mid;}
+ const watts=(lo+hi)/2;
+ return{watts,storedWatts,lossWatts:watts-storedWatts};
+}
 function buildMesh(c,material){
  const nr=c.nr,nz=c.nz,a=c.diameter/200,b=a*c.aspect,R=Math.sqrt(a*b),H=c.thickness/1000;
  const perimeter=PI*(3*(a+b)-Math.sqrt((3*a+b)*(a+3*b)));
@@ -201,7 +233,7 @@ class Engine{
  }
  substep(dt){
   const c=this.config,m=this.mesh,pm=this.panMesh,T=this.T,F=this.flux,PT=this.panT,PF=this.panFlux,ambient=c.ambient,panContact=this.hasPanContact(),coupledRadiation=c.losses&&c.panRadiation&&panContact;F.fill(0);PF.fill(0);
-  const wanted=1800*this.power/12,decay=Math.exp(-dt/3),burnerEnergy=wanted*dt+(this.actualWatts-wanted)*3*(1-decay);
+  const wanted=c.maxHeatWatts*(this.power/12)**c.powerExponent,decay=Math.exp(-dt/3),burnerEnergy=wanted*dt+(this.actualWatts-wanted)*3*(1-decay);
   this.actualWatts=wanted+(this.actualWatts-wanted)*decay;this.energyInput+=burnerEnergy;
   let lost=0;
   const airFlux=(t,h,epsilon)=>h*(t-ambient)+epsilon*SIGMA*(Math.pow(t+273.15,4)-Math.pow(ambient+273.15,4));
@@ -251,5 +283,5 @@ class Engine{
   return{time:this.time,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
  }
 }
-globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
+globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,estimateBoilCalibration,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
 })();

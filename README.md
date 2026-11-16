@@ -36,3 +36,11 @@ Optional contributions help with coffee and AI development costs. Thank you!
 ## License
 
 Copyright Â© 2026 Kristian Rauhe Harreby. Free software under [GNU GPLv3](LICENSE). Developed with AI assistance.
+
+### Optional stove calibration
+
+Stove settings stores one local profile per pan preset: zone/pan name, highest numbered setting, estimated maximum heat input, and assumed linear or gentler-low-settings power curve. A 1-litre boil test uses the same frying pan without a lid at the highest numbered setting (no Boost). Enter elapsed time, initial water/pan temperature, room temperature and test diameter. The inverse lumped heating model includes the selected preset pan heat capacity and estimated convection/radiation losses; evaporation and hob startup are not resolved. The result is approximate effective input, not an electrical power measurement. One endpoint cannot identify both losses and power or calibrate lower settings. The cooking mesh remains a 28 cm pan; the test diameter only affects the calibration loss estimate. Local storage is browser/origin specific; unavailable storage falls back to the current session.
+
+Meat geometry remains fixed during heating: patty contraction, bulging and changing contact area are not yet modeled.
+
+Manual ratings can also be entered with the number of heat levels. Editable transfer guesses are induction 85%, radiant/solid electric 75%, and gas 35%, informed by ENERGY STAR and NYSERDA broad cooking-efficiency comparisons. These are approximate proxies, not measured pan-input efficiencies. Technology does not yet change the simplified burner spatial distribution or response lag. Manual inputs and chosen technology are saved locally with the profile.
