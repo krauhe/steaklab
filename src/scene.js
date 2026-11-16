@@ -6,13 +6,13 @@ const sectionCanvas=document.createElement('canvas');
 function draw(o){
  const {ctx,w,h,config:c,frame,mesh,panMesh=null,T,sample,heatRGB,texture,rasterEllipse,label,fmt,mode,t,compact=false,motion=null}=o;
  const s=frame.s,small=!compact&&w<560,elevation=28*Math.PI/180,se=Math.sin(elevation),ce=Math.cos(elevation);
- const a=c.diameter*5,b=a*c.aspect,H=c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
+ const D=s.diameter??c.diameter,a=D*5,b=a*c.aspect,H=s.thickness??c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
  const theta=(s.bottomSide===0?0:Math.PI)-Math.PI+Math.PI*ease;
  // Reserve the entire turn/lift envelope once per geometry. Neither the scale
  // nor the camera center depends on the action, its progress, or the meat side.
- const halfH=H/2,flipLift=Math.max(0,b-halfH);
- const flipTop=Math.hypot(b*se-halfH*ce,b*ce+halfH*se+flipLift*ce)+(halfH+16)*ce;
- const frameAbove=Math.max(154*se+20*ce,flipTop,b*se+(H+78)*ce),frameBelow=Math.max(170*se+24*ce,Math.hypot(b*se+halfH*ce,Math.min(b,halfH)*ce+halfH*se)-halfH*ce);
+ const envelopeH=c.thickness*(c.meat==='minced'&&c.shrinkage!==false?1.3:1),envelopeB=c.diameter*5*c.aspect,halfH=envelopeH/2,flipLift=Math.max(0,envelopeB-halfH);
+ const flipTop=Math.hypot(envelopeB*se-halfH*ce,envelopeB*ce+halfH*se+flipLift*ce)+(halfH+16)*ce;
+ const frameAbove=Math.max(154*se+20*ce,flipTop,envelopeB*se+(envelopeH+78)*ce),frameBelow=Math.max(170*se+24*ce,Math.hypot(envelopeB*se+halfH*ce,Math.min(envelopeB,halfH)*ce+halfH*se)-halfH*ce);
  const frameTop=compact?12:84,frameBottom=small?221:compact?h-29:h-89;
  const scale=Math.min(small?(w-48)/330:w*.43/310,(frameBottom-frameTop)/(frameAbove+frameBelow)),cx=small?w*.50:w*(compact?.28:.25),cy=(frameTop+frameBottom+(frameAbove-frameBelow)*scale)/2;
  const project=(x,y,z=0)=>[cx+x*scale,cy+(y*se-z*ce)*scale];
@@ -148,7 +148,7 @@ function draw(o){
  if(!compact&&!resting&&s.oil>0)label(ctx,'Oil · thin surface film',small?16:24,small?69:71,'#bdb080',9);
  }
  // Front elevation: x and z use one scale. Never exaggerate the height.
- const desiredSW=small?w*.66:w*.28,sw=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/H):desiredSW,sx=small?w*.15:w*(compact?.79:.78)-sw/2,sh=sw*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
+ const desiredSW=small?w*.66:w*.28,baseSW=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/envelopeH):desiredSW,sw=baseSW*D/c.diameter,sx=(small?w*.48:w*(compact?.79:.78))-sw/2,sh=baseSW*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
  if(s.phase==='ready')label(ctx,t('Meat preview'),sx,sy-25,'#a5b09f',11);
  if(!compact)label(ctx,compact?'CENTER SECTION':'CENTER SECTION · TRUE PROPORTIONS',sx,sy-(compact?25:43),'#bdcbae',small?8:9);
  if(!compact)label(ctx,'Same scale for diameter and thickness',sx,sy-27,'#788b6d',8);
@@ -163,7 +163,7 @@ function draw(o){
  const centerY=sy+sh/2;ctx.beginPath();ctx.arc(sx+sw/2,centerY,2.7,0,Math.PI*2);ctx.fillStyle='#effadf';ctx.fill();ctx.beginPath();ctx.moveTo(sx+sw/2+5,centerY);ctx.lineTo(sx+sw+6,centerY);ctx.strokeStyle='#e0efb9a0';ctx.stroke();label(ctx,fmt(s.core)+'°',sx+sw+9,centerY+3,'#e1f3b5',10);
  // Dimension lines provide an unambiguous check against the geometry controls.
  const dy=sy+sh+(compact?20:31);ctx.strokeStyle='#839578';ctx.beginPath();ctx.moveTo(sx,dy);ctx.lineTo(sx+sw,dy);for(const x of [sx,sx+sw]){ctx.moveTo(x,dy-3);ctx.lineTo(x,dy+3);}ctx.moveTo(sx-11,sy);ctx.lineTo(sx-11,sy+sh);for(const y of [sy,sy+sh]){ctx.moveTo(sx-14,y);ctx.lineTo(sx-8,y);}ctx.stroke();
- label(ctx,fmt(c.diameter,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
+ label(ctx,fmt(D,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
  if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx,sy+sh+3,sw,2);}
 }
 globalThis.SteakScene={draw};

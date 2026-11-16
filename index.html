@@ -290,7 +290,7 @@ const packs = {en: {
   "help": {
     "thickness": [
       "Thickness — the major time factor",
-      "Heat must travel from the surface toward the center. The characteristic diffusion time grows roughly with the square of the thickness. A steak twice as thick therefore requires far more time, even on the same pan. Thickness is used directly in the FEM mesh. Both the angled view and the center section use the real thickness-to-diameter ratio. The camera foreshortens depth, but height is not exaggerated."
+      "Heat must travel from the surface toward the center. The characteristic diffusion time grows roughly with the square of the thickness. A steak twice as thick therefore requires far more time, even on the same pan. The control sets raw thickness. Minced patties thicken during heating using an illustrative model, and the current thickness is used in the FEM mesh. Both the angled view and the center section use the real thickness-to-diameter ratio. The camera foreshortens depth, but height is not exaggerated."
     ],
     "diameter": [
       "Diameter and mass",
@@ -298,7 +298,7 @@ const packs = {en: {
     ],
     "aspect": [
       "Ellipse — from round to oval",
-      "The ratio between the minor and major diameters. 1.00 is a circle; 0.50 gives half as much width as length. With a fixed major diameter, both mass and contact area change. The physics uses a circle of equivalent area and corrects the lateral surface area. The exact three-dimensional temperature field of a strongly oval steak is therefore not calculated."
+      "The controls describe the initial, raw shape. Minced patties become narrower and thicker during heating in both the drawing and the heat calculation; current dimensions appear beside the meat. The shape parameter is the ratio between the minor and major diameters. 1.00 is a circle; 0.50 gives half as much width as length. With a fixed major diameter, both mass and contact area change. The physics uses a circle of equivalent area and corrects the lateral surface area. The exact three-dimensional temperature field of a strongly oval steak is therefore not calculated."
     ],
     "initial": [
       "Initial meat temperature",
@@ -306,7 +306,7 @@ const packs = {en: {
     ],
     "wetness": [
       "Surface moisture — energy before crust",
-      "Before a wet surface can get much hotter than 100 °C, water must evaporate. This costs energy and delays browning. The slider varies an extra water film of 0–0.12 kg/m². In addition, all nodes contain tissue water, which absorbs latent heat of vaporization around 100 °C. Even “patted dry” contains water. Steam is assumed to escape immediately; pressure and transport through the meat are simplified. Internal moisture transport, juice loss, and shrinkage are not included in this version."
+      "Before a wet surface can get much hotter than 100 °C, water must evaporate. This costs energy and delays browning. The slider varies an extra water film of 0–0.12 kg/m². In addition, all nodes contain tissue water, which absorbs latent heat of vaporization around 100 °C. Even “patted dry” contains water. Steam is assumed to escape immediately; pressure and transport through the meat are simplified. Internal moisture transport and juice loss are not resolved. Minced patties use an illustrative temperature-dependent change in diameter and thickness; this is not a fluid-loss model."
     ],
     "contact": [
       "Contact — how easily heat enters",
@@ -379,13 +379,13 @@ const packs = {en: {
   },
   "sources": "<p><a href=\"https://www.foedevarestyrelsen.dk/kost-og-foedevarer/alt-om-mad/god-koekkenhygiejne/fem-raad-til-god-koekkenhygiejne/varm-mad-ordentligt-op\" target=\"_blank\" rel=\"noopener\">Danish Veterinary and Food Administration (Fødevarestyrelsen): Heat food properly</a> — thorough cooking, and the difference between whole cuts of meat and minced meat.</p><p><a href=\"https://www.foodsafety.gov/food-safety-charts/safe-minimum-internal-temperatures\" target=\"_blank\" rel=\"noopener\">FoodSafety.gov: Safe Minimum Internal Temperatures</a> — 63 °C and a 3-minute rest for whole cuts of beef and pork, 74 °C for poultry, and 63 °C for fish. U.S. consumer guidance.</p><p><a href=\"https://www.food.dtu.dk/nyheder/nyhed?id=9bfa54ee-c186-4b32-8d5d-ffa1cf05055f\" target=\"_blank\" rel=\"noopener\">DTU National Food Institute: Why slow cooking works</a> — at least 75 °C for poultry, minced meat, and diced/cubed meat.</p><p><a href=\"https://jsdokken.com/dolfinx-tutorial/main/chapter2/heat_equation.html\" target=\"_blank\" rel=\"noopener\">FEniCSx: The heat equation</a> — background on FEM and transient heat conduction; this app uses explicit time integration.</p><p><a href=\"https://arxiv.org/abs/1908.10787\" target=\"_blank\" rel=\"noopener\">Shehadeh et al.: A Mathematical Model for Meat Cooking</a> — example of a more advanced model with moisture transport and shrinkage; that model is not implemented here.</p><p class=\"small\">Sources verified November 13, 2026. Physical constants and browning parameters here are illustrative modeling choices, not a calibration against a specific cut of meat.</p>"
 }};
-packs.en.model="<p>SteakLab is a place to experiment. <b>864 linear triangular elements</b> resolve an axisymmetric section through the meat, including radial heat flow and conduction through its thickness. A separate axisymmetric pan shell resolves concentric floor annuli and rising wall bands.</p><h3>From stove to center</h3><p><code>M · dT/dt + K · T = Q</code></p><p>A lumped mass matrix and conservative heat fluxes couple the nodes. The pan loses exactly the heat transferred to the meat. Explicit time steps are at most 0.2 seconds and are reduced further by a stability bound.</p><h3>Included</h3><p>Geometry, local pan conduction, a circular 9 cm-radius burner footprint, thermal mass, contact resistance over an equal-area circular meat footprint, oil, convection, radiation between the exposed pan floor, meat sides and room, local tissue-water reservoirs, a surface water film, flipping and carryover heat. Isotherms come from the actual FEM field. Browning is a separate empirical thermal-dose calculation.</p><h3>Simplifications</h3><p>The pan shell has spatial floor and wall temperatures but remains uniform through its metal thickness. The ellipse becomes an equal-area circle with corrected side area, including its contact footprint on the pan. Pan-side radiation uses geometric view factors, grey-diffuse exchange and an exposed-area effective emitting temperature; it does not resolve radiation between every pair of pan cells and meat patches. The handle, local angular variation and rising hot-air flow are not resolved. Material properties are constant. There is no internal liquid transport, shrinkage, fat rendering, anatomy, full 3D thermal geometry or bacterial-inactivation model. Rest can be in open air, under loosely tented foil, or on the pan with the stove off. Foil uses illustrative convection/radiation factors of 0.4/0.5 without resolving condensation. Vapor is assumed to escape immediately. Heat capacity and volume stay fixed as water is lost. The model has not been calibrated against a particular stove or cut.</p><table><tr><th>Ingredient</th><th>k · W/(m·K)</th><th>ρ · kg/m³</th><th>c · J/(kg·K)</th></tr>{materialRows}</table><h3>Suggested cooking plans</h3><p>The planner simulates preheating the future contact footprint, power reductions, minute-by-minute flips and a prospective rest. Preheat refers to the contact-area-weighted pan temperature, not its whole-pan mean. It searches for the selected peak <b>center</b> temperature during that rest. It does not prove that every part of real food has reached a safe temperature. Review the coldest-point display and use a real thermometer.</p><h3>Food safety</h3><p>Color and crust do not establish food safety. The Minced preset represents a minced beef patty, using illustrative beef thermal properties. It requires a modeled coldest-point temperature of 75 °C before removal and does not offer rare doneness. Other presets represent whole, non-mechanically-tenderized cuts. Injected or mechanically tenderized meat needs a different assessment. Follow official guidance for the actual food.</p><h3>Sources and further reading</h3>";
+packs.en.model="<p>SteakLab is a place to experiment. <b>864 linear triangular elements</b> resolve an axisymmetric section through the meat, including radial heat flow and conduction through its thickness. A separate axisymmetric pan shell resolves concentric floor annuli and rising wall bands.</p><h3>From stove to center</h3><p><code>M · dT/dt + K · T = Q</code></p><p>A lumped mass matrix and conservative heat fluxes couple the nodes. The pan loses exactly the heat transferred to the meat. Explicit time steps are at most 0.2 seconds and are reduced further by a stability bound.</p><h3>Included</h3><p>Geometry, local pan conduction, a circular 9 cm-radius burner footprint, thermal mass, contact resistance over an equal-area circular meat footprint, oil, convection, radiation between the exposed pan floor, meat sides and room, local tissue-water reservoirs, a surface water film, flipping and carryover heat. Isotherms come from the actual FEM field. Browning is a separate empirical thermal-dose calculation.</p><h3>Simplifications</h3><p>The pan shell has spatial floor and wall temperatures but remains uniform through its metal thickness. The ellipse becomes an equal-area circle with corrected side area, including its contact footprint on the pan. Pan-side radiation uses geometric view factors, grey-diffuse exchange and an exposed-area effective emitting temperature; it does not resolve radiation between every pair of pan cells and meat patches. The handle, local angular variation and rising hot-air flow are not resolved. Material properties are constant. Minced patties use an irreversible temperature-dependent shape approximation: diameter can decrease by up to 20% and thickness increase by up to 30%. These limits are illustrative, not fitted to a fat percentage or a particular patty. The FEM conduction geometry, exposed areas, contact footprint and radiation geometry change with the patty. Material-node heat capacities remain constant, so deformation alone neither creates nor removes heat. This implies an effective density change; it does not simulate expelled juice or rendered fat. The shape remains an elliptical cylinder, not a full curved mechanical shape. Whole-cut geometry stays fixed: fiber-direction-dependent contraction is not yet implemented. There is no internal liquid transport, fat rendering, anatomy, full 3D thermal geometry or bacterial-inactivation model. Rest can be in open air, under loosely tented foil, or on the pan with the stove off. Foil uses illustrative convection/radiation factors of 0.4/0.5 without resolving condensation. Vapor is assumed to escape immediately. Heat capacity stays fixed as water is lost; minced-patty volume can change through the separate shape approximation. The model has not been calibrated against a particular stove or cut.</p><table><tr><th>Ingredient</th><th>k · W/(m·K)</th><th>ρ · kg/m³</th><th>c · J/(kg·K)</th></tr>{materialRows}</table><h3>Suggested cooking plans</h3><p>The planner simulates preheating the future contact footprint, power reductions, minute-by-minute flips and a prospective rest. Preheat refers to the contact-area-weighted pan temperature, not its whole-pan mean. It searches for the selected peak <b>center</b> temperature during that rest. It does not prove that every part of real food has reached a safe temperature. Review the coldest-point display and use a real thermometer.</p><h3>Food safety</h3><p>Color and crust do not establish food safety. The Minced preset represents a minced beef patty, using illustrative beef thermal properties. It requires a modeled coldest-point temperature of 75 °C before removal and does not offer rare doneness. Other presets represent whole, non-mechanically-tenderized cuts. Injected or mechanically tenderized meat needs a different assessment. Follow official guidance for the actual food.</p><h3>Sources and further reading</h3>";
 packs.en.sources += '<p><a href="https://doc.comsol.com/6.4/doc/com.comsol.help.heat/heat_ug_theory.07.056.html" target="_blank" rel="noopener">COMSOL: surface radiation and geometric view factors</a> — background for pan-to-side radiation; SteakLab uses its own simplified geometry and implementation.</p>';
 packs.en.help.colorScale=['A non-linear temperature color scale','Focus mode gives 84% of the color range to 40–80 °C, so small cooking-temperature differences are easier to see. The temperature labels follow this non-linear mapping. It changes only the colors, never the computed temperatures. Choose Linear to spread the colors evenly across 0–220 °C. Values outside the range use the endpoint colors.'];
 packs.en.help.contact=['Contact heat transfer — a multiplier','This is a multiplier of the assumed heat-transfer coefficient between pan and meat, not a fraction of area. 1.00× is the reference; 1.50× transfers 50% more heat for the same temperature difference. The range represents uncertainty and variations in surface contact. Oil separately improves the reference coefficient.'];
 packs.en.help.actions=['Drag for time, click for settings','Each action stays separate. Its horizontal position sets the time; the vertical guide shows that time while dragging. Click an icon for options beside it. Heat and oil use sliders that apply immediately. Flip and placement have no extra numeric settings. Existing action types stay fixed. Editing keeps the viewing time fixed. Clear removes the actions; Undo restores them. Arrow keys move a focused card by 5 seconds; Shift uses 30 seconds.'];
 packs.en.help.rest=['Three ways to rest','Open air removes the meat from the pan and lets all surfaces cool. Loose foil also removes it, then reduces modeled convection to 40% and radiation to 50%; these are illustrative coefficients, with no condensation or moisture trapping calculation. Stay on the pan switches the stove target to zero but keeps thermal contact and the hob’s 3-second lag. The pan’s stored heat can continue cooking the meat. You can flip it during pan rest or later move it to open air or foil. A later stove action can switch the heat back on.'];
-packs.en.help.gradient=['Depth through the steak','The spatial axis is vertical, in millimetres from side B toward side A. B always stays at the top and A at the bottom of this graph, even when the actual steak flips. Temperature is horizontal, with a fixed range for the whole cooking plan. The dot marks the geometric center. The coldest-point value is calculated across the full mesh. The vertical outer edge receives radiation from the exposed pan floor while losing heat to the room; it may still be cooler than the interior.'];
+packs.en.help.gradient=['Depth through the steak','The spatial axis is vertical, in millimetres from side B toward side A. For minced patties its depth labels follow the current thickness, while the A/B endpoints stay in fixed screen positions. B always stays at the top and A at the bottom of this graph, even when the actual steak flips. Temperature is horizontal, with a fixed range for the whole cooking plan. The dot marks the geometric center. The coldest-point value is calculated across the full mesh. The vertical outer edge receives radiation from the exposed pan floor while losing heat to the room; it may still be cooler than the interior.'];
 let locale='en';
 const nodeKeys=new WeakMap(),attrKeys=new WeakMap();
 const api={
@@ -423,10 +423,10 @@ const PANS={iron:{label:'Cast iron',mass:2,cp:460,k:55,rho:7200,emissivity:.75},
 // Loose foil is represented only by reduced effective heat loss to the room.
 // No foil heat capacity, condensation, moisture trapping or seal is resolved.
 const REST_MODES={air:{convection:1,radiation:1},foil:{convection:.4,radiation:.5},pan:{convection:1,radiation:1}};
-const DEFAULTS={meat:'beef',thickness:25,diameter:14,aspect:.78,initial:5,pan:'iron',wetness:.5,contact:1,nr:18,nz:24,panNr:14,panNw:4,ambient:22,panInitial:22,maxHeatWatts:1800,powerExponent:1,losses:true,evaporation:true,panRadiation:true};
+const DEFAULTS={meat:'beef',thickness:25,diameter:14,aspect:.78,initial:5,pan:'iron',wetness:.5,contact:1,nr:18,nz:24,panNr:14,panNw:4,ambient:22,panInitial:22,maxHeatWatts:1800,powerExponent:1,losses:true,evaporation:true,panRadiation:true,shrinkage:true};
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 function number(v,fallback,lo,hi){return Number.isFinite(+v)?clamp(+v,lo,hi):fallback;}
-function normalized(input){const c={...DEFAULTS,...input};for(const [key,lo,hi] of [['thickness',8,60],['diameter',8,22],['aspect',.45,1],['initial',0,30],['wetness',0,1],['contact',.5,1.5],['ambient',0,40],['panInitial',0,400],['maxHeatWatts',100,6000],['powerExponent',.5,3],['nr',6,48],['nz',8,64],['panNr',6,64],['panNw',2,16]])c[key]=number(c[key],DEFAULTS[key],lo,hi);c.nr=2*Math.round(c.nr/2);c.nz=2*Math.round(c.nz/2);c.panNr=Math.round(c.panNr);c.panNw=Math.round(c.panNw);if(!MATERIALS[c.meat])c.meat='beef';if(!PANS[c.pan])c.pan='iron';return c;}
+function normalized(input){const c={...DEFAULTS,...input};for(const [key,lo,hi] of [['thickness',8,60],['diameter',8,22],['aspect',.45,1],['initial',0,30],['wetness',0,1],['contact',.5,1.5],['ambient',0,40],['panInitial',0,400],['maxHeatWatts',100,6000],['powerExponent',.5,3],['nr',6,48],['nz',8,64],['panNr',6,64],['panNw',2,16]])c[key]=number(c[key],DEFAULTS[key],lo,hi);c.nr=2*Math.round(c.nr/2);c.nz=2*Math.round(c.nz/2);c.panNr=Math.round(c.panNr);c.panNw=Math.round(c.panNw);if(!MATERIALS[c.meat])c.meat='beef';if(!PANS[c.pan])c.pan='iron';c.shrinkage=c.shrinkage!==false;return c;}
 // One litre of water plus the selected pan, both starting at the same temperature.
 // A lumped inverse estimate of pan input, not electrical nameplate power.
 // Convection (8 W/m²K) and radiation from exposed water and outer pan surfaces
@@ -570,6 +570,7 @@ function panSideRadiation(mesh,geometry,bottomSide,T,pan,ambient,panEmissivity,m
 class Engine{
  constructor(input={}){
   this.config=normalized(input);this.material=MATERIALS[this.config.meat];this.panMaterial=PANS[this.config.pan];this.mesh=buildMesh(this.config,this.material);this.panMesh=buildPanMesh(this.config,this.panMaterial,this.mesh);
+  this.shrinkProgress=0;this.shrinkHistory=new Float64Array(this.mesh.nodes.length);
   const n=this.mesh.nodes.length;this.T=new Float64Array(n).fill(this.config.initial);this.flux=new Float64Array(n);this.water=new Float64Array(n);
   this.doses=[new Float64Array(this.mesh.nr+1),new Float64Array(this.mesh.nr+1)];
   this.panT=new Float64Array(this.panMesh.nodes.length).fill(this.config.panInitial);this.panFlux=new Float64Array(this.panT.length);this.panCapacity=this.panMesh.capacities.reduce((s,x)=>s+x,0);
@@ -577,7 +578,7 @@ class Engine{
   this.energyInput=0;this.energyLost=0;this.panArea=this.panMesh.area;
   this.panRadiationGeometry=buildPanRadiation(this.mesh);
   // Distributed tissue water plus a mesh-independent superficial film. Vapor
-  // is assumed to escape immediately; no pressure/diffusion/shrinkage solve.
+  // is assumed to escape immediately; no pressure/diffusion or drip-loss solve.
   // Keeping heat capacities fixed makes the simplified energy budget explicit.
   for(let i=0;i<n;i++)this.water[i]=this.mesh.mass[i]/this.material.cp*this.material.water+this.mesh.boundaryArea[i]*.12*this.config.wetness;
   this.initialWater=this.water.reduce((a,b)=>a+b,0);this.initialEnergy=this.energy();
@@ -589,9 +590,44 @@ class Engine{
  get panContactTemp(){let heat=0;for(let i=0;i<this.panMesh.bottomCount;i++)heat+=this.panMesh.contactArea[i]*this.panT[i];return heat/this.mesh.area;}
  energy(){let result=0;for(let i=0;i<this.panT.length;i++)result+=this.panMesh.capacities[i]*(this.panT[i]-this.config.ambient);for(let i=0;i<this.T.length;i++)result+=this.mesh.mass[i]*(this.T[i]-this.config.ambient);return result;}
  clone(){
-  const copy=Object.assign(Object.create(Engine.prototype),this);copy.config={...this.config};copy.T=Float64Array.from(this.T);copy.flux=new Float64Array(this.T.length);copy.water=Float64Array.from(this.water);copy.doses=this.doses.map(d=>Float64Array.from(d));
+  const copy=Object.assign(Object.create(Engine.prototype),this);copy.config={...this.config};copy.T=Float64Array.from(this.T);copy.flux=new Float64Array(this.T.length);copy.water=Float64Array.from(this.water);copy.doses=this.doses.map(d=>Float64Array.from(d));copy.shrinkHistory=Float64Array.from(this.shrinkHistory);
+  copy.mesh={...this.mesh,nodes:this.mesh.nodes.map(n=>({...n})),triangles:this.mesh.triangles.map(t=>t.slice()),edges:this.mesh.edges.map(e=>e.slice()),faceA:this.mesh.faceA.map(n=>({...n})),faceB:this.mesh.faceB.map(n=>({...n})),side:this.mesh.side.map(n=>({...n}))};
+  for(const key of ['mass','diag','boundaryArea'])copy.mesh[key]=Float64Array.from(this.mesh[key]);
+  copy.edgeI=Int32Array.from(this.edgeI);copy.edgeJ=Int32Array.from(this.edgeJ);copy.edgeG=Float64Array.from(this.edgeG);
+  copy.panRadiationGeometry=buildPanRadiation(copy.mesh);
   copy.panT=Float64Array.from(this.panT);copy.panFlux=new Float64Array(this.panT.length);copy.panMesh={...this.panMesh,nodes:this.panMesh.nodes.map(n=>({...n})),edges:this.panMesh.edges.map(e=>e.slice()),contact:this.panMesh.contact.map(e=>e.slice())};
   for(const key of ['masses','capacities','diag','contactArea','burnerWeights'])copy.panMesh[key]=Float64Array.from(this.panMesh[key]);return copy;
+ }
+ // Phenomenological affine deformation of minced patties, not a mechanics or
+ // fat-rendering model. Temperature-history activation is mass weighted.
+ // Full activation reduces diameter by 20% and raises thickness by 30%.
+ // These deliberately illustrative coefficients do not predict a recipe's
+ // measured shrinkage. Nodes follow material: heat capacity, water and crust
+ // remain attached to them. The smaller volume implies effective densification;
+ // expelled liquid/fat, pressure, elastic work and doming are not resolved.
+ updateGeometry(progress){
+  if(!Number.isFinite(progress))throw new Error('Shrinkage progress must be finite.');
+  if(this.config.meat!=='minced'||!this.config.shrinkage||this.phase==='ready')return false;
+  const next=clamp(Math.max(this.shrinkProgress,progress),0,1);
+  if(next<=this.shrinkProgress)return false;
+  const c={...this.config,diameter:this.config.diameter*(1-.2*next),thickness:this.config.thickness*(1+.3*next)},mesh=buildMesh(c,this.material);
+  // Never replace material capacities with the capacity of the deformed volume.
+  // Keeping temperatures and capacities unchanged conserves sensible energy.
+  mesh.mass=this.mesh.mass;this.mesh=mesh;this.shrinkProgress=next;
+  this.edgeI=Int32Array.from(mesh.edges,e=>e[0]);this.edgeJ=Int32Array.from(mesh.edges,e=>e[1]);this.edgeG=Float64Array.from(mesh.edges,e=>e[2]);
+  const contactMesh=buildPanMesh(this.config,this.panMaterial,mesh);
+  this.panMesh.contact=contactMesh.contact;this.panMesh.contactArea=contactMesh.contactArea;
+  // Existing pan state, including capacities added by oil, is left untouched.
+  this.panRadiationGeometry=buildPanRadiation(mesh);return true;
+ }
+ updateShrinkage(){
+  if(this.config.meat!=='minced'||!this.config.shrinkage||this.phase==='ready')return;
+  let weighted=0,total=0;
+  for(let i=0;i<this.T.length;i++){const x=clamp((this.T[i]-40)/40,0,1),a=x*x*(3-2*x);this.shrinkHistory[i]=Math.max(this.shrinkHistory[i],a);weighted+=this.mesh.mass[i]*this.shrinkHistory[i];total+=this.mesh.mass[i];}
+  const desired=weighted/total;
+  // Rebuild at bounded increments rather than every thermal substep. Snapshots
+  // report the actual mesh dimensions, keeping displayed and solved shape equal.
+  if(desired-this.shrinkProgress>=.005||desired>=1-1e-12)this.updateGeometry(desired);
  }
  hasPanContact(){return this.phase==='cooking'||this.phase==='resting'&&this.restMode==='pan';}
  action(type,value){
@@ -675,13 +711,13 @@ class Engine{
    for(let side=0;side<2;side++)for(let r=0;r<faces[side].length;r++){const temp=T[faces[side][r].i];if(temp>120)this.doses[side][r]+=dt*Math.exp(Math.min(15,(temp-150)/25))/180;}
   }
   for(let i=0;i<PT.length;i++){PT[i]+=(burnerEnergy*pm.burnerWeights[i]+PF[i]*dt)/pm.capacities[i];if(!Number.isFinite(PT[i])||PT[i]< -273.15)throw new Error('Pan thermal solver became unstable.');}
-  this.energyLost+=lost*dt;
+  this.energyLost+=lost*dt;this.updateShrinkage();
  }
  observe(){
   const m=this.mesh,face=nodes=>nodes.reduce((s,n)=>s+this.T[n.i]*n.area,0)/m.area;
   const browns=[],burns=[];
   for(let s=0;s<2;s++){let b=0,c=0;for(let r=0;r<this.doses[s].length;r++){const d=this.doses[s][r],area=m.faceA[r].area;b+=area*(1-Math.exp(-d));c+=area*(1-Math.exp(-Math.max(0,d-3)*.7));}browns.push(100*b/m.area);burns.push(100*c/m.area);}
-  return{time:this.time,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
+  return{time:this.time,diameter:this.config.diameter*(1-.2*this.shrinkProgress),thickness:m.H*1000,shrinkProgress:this.shrinkProgress,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
  }
 }
 globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,estimateBoilCalibration,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
@@ -811,13 +847,13 @@ const sectionCanvas=document.createElement('canvas');
 function draw(o){
  const {ctx,w,h,config:c,frame,mesh,panMesh=null,T,sample,heatRGB,texture,rasterEllipse,label,fmt,mode,t,compact=false,motion=null}=o;
  const s=frame.s,small=!compact&&w<560,elevation=28*Math.PI/180,se=Math.sin(elevation),ce=Math.cos(elevation);
- const a=c.diameter*5,b=a*c.aspect,H=c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
+ const D=s.diameter??c.diameter,a=D*5,b=a*c.aspect,H=s.thickness??c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
  const theta=(s.bottomSide===0?0:Math.PI)-Math.PI+Math.PI*ease;
  // Reserve the entire turn/lift envelope once per geometry. Neither the scale
  // nor the camera center depends on the action, its progress, or the meat side.
- const halfH=H/2,flipLift=Math.max(0,b-halfH);
- const flipTop=Math.hypot(b*se-halfH*ce,b*ce+halfH*se+flipLift*ce)+(halfH+16)*ce;
- const frameAbove=Math.max(154*se+20*ce,flipTop,b*se+(H+78)*ce),frameBelow=Math.max(170*se+24*ce,Math.hypot(b*se+halfH*ce,Math.min(b,halfH)*ce+halfH*se)-halfH*ce);
+ const envelopeH=c.thickness*(c.meat==='minced'&&c.shrinkage!==false?1.3:1),envelopeB=c.diameter*5*c.aspect,halfH=envelopeH/2,flipLift=Math.max(0,envelopeB-halfH);
+ const flipTop=Math.hypot(envelopeB*se-halfH*ce,envelopeB*ce+halfH*se+flipLift*ce)+(halfH+16)*ce;
+ const frameAbove=Math.max(154*se+20*ce,flipTop,envelopeB*se+(envelopeH+78)*ce),frameBelow=Math.max(170*se+24*ce,Math.hypot(envelopeB*se+halfH*ce,Math.min(envelopeB,halfH)*ce+halfH*se)-halfH*ce);
  const frameTop=compact?12:84,frameBottom=small?221:compact?h-29:h-89;
  const scale=Math.min(small?(w-48)/330:w*.43/310,(frameBottom-frameTop)/(frameAbove+frameBelow)),cx=small?w*.50:w*(compact?.28:.25),cy=(frameTop+frameBottom+(frameAbove-frameBelow)*scale)/2;
  const project=(x,y,z=0)=>[cx+x*scale,cy+(y*se-z*ce)*scale];
@@ -953,7 +989,7 @@ function draw(o){
  if(!compact&&!resting&&s.oil>0)label(ctx,'Oil · thin surface film',small?16:24,small?69:71,'#bdb080',9);
  }
  // Front elevation: x and z use one scale. Never exaggerate the height.
- const desiredSW=small?w*.66:w*.28,sw=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/H):desiredSW,sx=small?w*.15:w*(compact?.79:.78)-sw/2,sh=sw*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
+ const desiredSW=small?w*.66:w*.28,baseSW=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/envelopeH):desiredSW,sw=baseSW*D/c.diameter,sx=(small?w*.48:w*(compact?.79:.78))-sw/2,sh=baseSW*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
  if(s.phase==='ready')label(ctx,t('Meat preview'),sx,sy-25,'#a5b09f',11);
  if(!compact)label(ctx,compact?'CENTER SECTION':'CENTER SECTION · TRUE PROPORTIONS',sx,sy-(compact?25:43),'#bdcbae',small?8:9);
  if(!compact)label(ctx,'Same scale for diameter and thickness',sx,sy-27,'#788b6d',8);
@@ -968,7 +1004,7 @@ function draw(o){
  const centerY=sy+sh/2;ctx.beginPath();ctx.arc(sx+sw/2,centerY,2.7,0,Math.PI*2);ctx.fillStyle='#effadf';ctx.fill();ctx.beginPath();ctx.moveTo(sx+sw/2+5,centerY);ctx.lineTo(sx+sw+6,centerY);ctx.strokeStyle='#e0efb9a0';ctx.stroke();label(ctx,fmt(s.core)+'°',sx+sw+9,centerY+3,'#e1f3b5',10);
  // Dimension lines provide an unambiguous check against the geometry controls.
  const dy=sy+sh+(compact?20:31);ctx.strokeStyle='#839578';ctx.beginPath();ctx.moveTo(sx,dy);ctx.lineTo(sx+sw,dy);for(const x of [sx,sx+sw]){ctx.moveTo(x,dy-3);ctx.lineTo(x,dy+3);}ctx.moveTo(sx-11,sy);ctx.lineTo(sx-11,sy+sh);for(const y of [sy,sy+sh]){ctx.moveTo(sx-14,y);ctx.lineTo(sx-8,y);}ctx.stroke();
- label(ctx,fmt(c.diameter,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
+ label(ctx,fmt(D,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
  if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx,sy+sh+3,sw,2);}
 }
 globalThis.SteakScene={draw};
@@ -1002,8 +1038,8 @@ function modelInfo(){const rows=Object.values(SteakPhysics.MATERIALS).map(m=>`<t
 function toast(message){$('toast').textContent=t(message);$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3600);}
 function rangeFill(el){el.style.setProperty('--fill',100*(+el.value-+el.min)/(+el.max-+el.min)+'%');}
 const fields=[
- {id:'thickness',name:'Thickness',min:8,max:60,step:1,unit:'mm',ends:['Thin','Thick']},
- {id:'diameter',name:'Diameter · major axis',min:8,max:22,step:.5,unit:'cm',ends:['Small','Large']},
+ {id:'thickness',name:'Raw thickness',min:8,max:60,step:1,unit:'mm',ends:['Thin','Thick']},
+ {id:'diameter',name:'Raw diameter · major axis',min:8,max:22,step:.5,unit:'cm',ends:['Small','Large']},
  {id:'aspect',name:'Shape · ellipse',min:.45,max:1,step:.01,unit:'',ends:['Oval','Round']},
  {id:'initial',name:'Initial temperature',min:0,max:30,step:1,unit:'°C',ends:['Fridge-cold','Warmer start']},
  {id:'contact',name:'Contact heat transfer',min:.5,max:1.5,step:.05,unit:'×',ends:['Loose / uneven','Good contact']}
@@ -1097,7 +1133,7 @@ async function suggestPlan(){
 }
 function renderSuggestion(){const box=$('suggestionSummary'),chip=$('planSummaryChip');if(!suggestion||suggestion.key!==planKey()){box.hidden=true;chip.hidden=true;return;}box.hidden=false;chip.hidden=false;const p=suggestion;chip.textContent=config.meat==='minced'?t('Coldest point at removal: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)}):t('Suggested: rest at {time} · peak core {temp} °C',{time:timeText(p.removed),temp:fmt(p.predicted.peak,1)});box.innerHTML=`<strong>${t(p.reached?'YOUR MODEL-BASED PLAN':'TARGET NOT REACHED IN 45 MIN')}</strong><div>${t('Preheat contact area to {temp} °C',{temp:p.preheat})} · ${t('add at {time}',{time:timeText(p.placed)})}</div><div>${t('Flip every minute · rest from {time}',{time:timeText(p.removed)})}</div><div>${t('Rest for {time}',{time:timeText(p.restSeconds)})}</div><p>${t('Predicted peak core: {temp} °C',{temp:fmt(p.predicted.peak,1)})}<br>${t('Core when removed: {temp} °C',{temp:fmt(p.predicted.atRemoval,1)})}<br>${t('Coldest point when removed: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)})}</p><small>${t(config.meat==='minced'?'This targets 75 °C at the simulated coldest point before removal. Verify real food with a thermometer.':'This targets the simulated center, not proven safe cooking. Use a real thermometer and the guidance below.')}</small>`;}
 function requestCompute(){clearTimeout(computeTimer);running=false;syncPlay();computeTimer=setTimeout(compute,120);}
-function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
+function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated','diameter','thickness','shrinkProgress'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
 function syncPlay(){$('play').innerHTML=icon(running?'pause':'play')+(running?'Pause':current>=duration?'Play again':current>0?'Continue':'Start experiment');}
 function seek(t){clearMotion();current=clamp(t,0,duration);running=false;syncPlay();render();}
 function scheduleNow(type,value){if(!result||pending)return;const phase=frame.s.phase;if(type==='add'&&phase!=='ready'||['flip','rest'].includes(type)&&phase!=='cooking'){toast(type==='add'?'The ingredient is already on the pan.':'Add the ingredient to the pan first.');return;}const t=Math.round(current);if(type==='power')events=events.filter(e=>!(e.type==='power'&&e.time===t));const event={id:eventID++,time:t,type,value};events.push(event);manualAnimation=event.id;$('scenarioSelect').value='custom';events.sort((a,b)=>a.time-b.time||a.id-b.id);renderEvents();compute();toast(eventDescription({type,value})+' at '+timeText(t)+' was added to the plan.');}
@@ -1140,7 +1176,7 @@ function rasterEllipse(ctx,cx,cy,rx,ry,side,heat=false){
 }
 function label(ctx,text,x,y,color='#9caa91',size=11,align='left'){ctx.fillStyle=color;ctx.font=`${Math.max(11,size)}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;ctx.textAlign=align;ctx.fillText(t(text),x,y);}
 function drawScene(){
- const width=$('scene').getBoundingClientRect().width,compact=matchMedia('(min-width:1100px) and (min-height:620px)').matches,sectionHeight=width*.66*config.thickness/(config.diameter*10);
+ const width=$('scene').getBoundingClientRect().width,compact=matchMedia('(min-width:1100px) and (min-height:620px)').matches,sectionHeight=width*.66*config.thickness*(config.meat==='minced'?1.3:1)/(config.diameter*10);
  $('scene').parentElement.style.height=compact?'':(width<560?384+sectionHeight:350)+'px';
  const {ctx,w,h}=canvasSetup('scene');
  SteakScene.draw({ctx,w,h,compact,config,frame,mesh,panMesh:result.panMesh,T:drawField,sample,heatRGB,texture,rasterEllipse,label,fmt,mode:view,t,motion:actionMotion});
@@ -1160,7 +1196,7 @@ function drawProfile(){
  // Material coordinates stay fixed: B at the top, A at the bottom, even after a flip.
  // One temperature range for the complete run prevents rescaling during playback.
  let maximum=Math.max(100,target);for(const p of result.snapshots)maximum=Math.max(maximum,p.s.max);
- const {ctx,w,h}=canvasSetup('profile'),maxT=Math.ceil(maximum/25)*25,l=52,r=17,top=38,bottom=17,H=config.thickness;
+ const {ctx,w,h}=canvasSetup('profile'),maxT=Math.ceil(maximum/25)*25,l=52,r=17,top=38,bottom=17,H=frame.s.thickness??config.thickness;
  const X=temp=>l+temp/maxT*(w-l-r),Y=depth=>top+depth/H*(h-top-bottom);
  for(let i=0;i<=4;i++){const value=i*maxT/4,x=X(value);ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,h-bottom);ctx.strokeStyle=palette.grid;ctx.lineWidth=.7;ctx.stroke();label(ctx,fmt(value),x,top-11,palette.text,10,'center');}
  for(let i=0;i<=4;i++){const depth=i*H/4,y=Y(depth);ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(w-r,y);ctx.strokeStyle=palette.grid;ctx.stroke();label(ctx,fmt(depth,depth%1?1:0),l-8,y+3,palette.text,9,'right');}

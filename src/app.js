@@ -26,8 +26,8 @@ function modelInfo(){const rows=Object.values(SteakPhysics.MATERIALS).map(m=>`<t
 function toast(message){$('toast').textContent=t(message);$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3600);}
 function rangeFill(el){el.style.setProperty('--fill',100*(+el.value-+el.min)/(+el.max-+el.min)+'%');}
 const fields=[
- {id:'thickness',name:'Thickness',min:8,max:60,step:1,unit:'mm',ends:['Thin','Thick']},
- {id:'diameter',name:'Diameter · major axis',min:8,max:22,step:.5,unit:'cm',ends:['Small','Large']},
+ {id:'thickness',name:'Raw thickness',min:8,max:60,step:1,unit:'mm',ends:['Thin','Thick']},
+ {id:'diameter',name:'Raw diameter · major axis',min:8,max:22,step:.5,unit:'cm',ends:['Small','Large']},
  {id:'aspect',name:'Shape · ellipse',min:.45,max:1,step:.01,unit:'',ends:['Oval','Round']},
  {id:'initial',name:'Initial temperature',min:0,max:30,step:1,unit:'°C',ends:['Fridge-cold','Warmer start']},
  {id:'contact',name:'Contact heat transfer',min:.5,max:1.5,step:.05,unit:'×',ends:['Loose / uneven','Good contact']}
@@ -121,7 +121,7 @@ async function suggestPlan(){
 }
 function renderSuggestion(){const box=$('suggestionSummary'),chip=$('planSummaryChip');if(!suggestion||suggestion.key!==planKey()){box.hidden=true;chip.hidden=true;return;}box.hidden=false;chip.hidden=false;const p=suggestion;chip.textContent=config.meat==='minced'?t('Coldest point at removal: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)}):t('Suggested: rest at {time} · peak core {temp} °C',{time:timeText(p.removed),temp:fmt(p.predicted.peak,1)});box.innerHTML=`<strong>${t(p.reached?'YOUR MODEL-BASED PLAN':'TARGET NOT REACHED IN 45 MIN')}</strong><div>${t('Preheat contact area to {temp} °C',{temp:p.preheat})} · ${t('add at {time}',{time:timeText(p.placed)})}</div><div>${t('Flip every minute · rest from {time}',{time:timeText(p.removed)})}</div><div>${t('Rest for {time}',{time:timeText(p.restSeconds)})}</div><p>${t('Predicted peak core: {temp} °C',{temp:fmt(p.predicted.peak,1)})}<br>${t('Core when removed: {temp} °C',{temp:fmt(p.predicted.atRemoval,1)})}<br>${t('Coldest point when removed: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)})}</p><small>${t(config.meat==='minced'?'This targets 75 °C at the simulated coldest point before removal. Verify real food with a thermometer.':'This targets the simulated center, not proven safe cooking. Use a real thermometer and the guidance below.')}</small>`;}
 function requestCompute(){clearTimeout(computeTimer);running=false;syncPlay();computeTimer=setTimeout(compute,120);}
-function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
+function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated','diameter','thickness','shrinkProgress'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
 function syncPlay(){$('play').innerHTML=icon(running?'pause':'play')+(running?'Pause':current>=duration?'Play again':current>0?'Continue':'Start experiment');}
 function seek(t){clearMotion();current=clamp(t,0,duration);running=false;syncPlay();render();}
 function scheduleNow(type,value){if(!result||pending)return;const phase=frame.s.phase;if(type==='add'&&phase!=='ready'||['flip','rest'].includes(type)&&phase!=='cooking'){toast(type==='add'?'The ingredient is already on the pan.':'Add the ingredient to the pan first.');return;}const t=Math.round(current);if(type==='power')events=events.filter(e=>!(e.type==='power'&&e.time===t));const event={id:eventID++,time:t,type,value};events.push(event);manualAnimation=event.id;$('scenarioSelect').value='custom';events.sort((a,b)=>a.time-b.time||a.id-b.id);renderEvents();compute();toast(eventDescription({type,value})+' at '+timeText(t)+' was added to the plan.');}
@@ -164,7 +164,7 @@ function rasterEllipse(ctx,cx,cy,rx,ry,side,heat=false){
 }
 function label(ctx,text,x,y,color='#9caa91',size=11,align='left'){ctx.fillStyle=color;ctx.font=`${Math.max(11,size)}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;ctx.textAlign=align;ctx.fillText(t(text),x,y);}
 function drawScene(){
- const width=$('scene').getBoundingClientRect().width,compact=matchMedia('(min-width:1100px) and (min-height:620px)').matches,sectionHeight=width*.66*config.thickness/(config.diameter*10);
+ const width=$('scene').getBoundingClientRect().width,compact=matchMedia('(min-width:1100px) and (min-height:620px)').matches,sectionHeight=width*.66*config.thickness*(config.meat==='minced'?1.3:1)/(config.diameter*10);
  $('scene').parentElement.style.height=compact?'':(width<560?384+sectionHeight:350)+'px';
  const {ctx,w,h}=canvasSetup('scene');
  SteakScene.draw({ctx,w,h,compact,config,frame,mesh,panMesh:result.panMesh,T:drawField,sample,heatRGB,texture,rasterEllipse,label,fmt,mode:view,t,motion:actionMotion});
@@ -184,7 +184,7 @@ function drawProfile(){
  // Material coordinates stay fixed: B at the top, A at the bottom, even after a flip.
  // One temperature range for the complete run prevents rescaling during playback.
  let maximum=Math.max(100,target);for(const p of result.snapshots)maximum=Math.max(maximum,p.s.max);
- const {ctx,w,h}=canvasSetup('profile'),maxT=Math.ceil(maximum/25)*25,l=52,r=17,top=38,bottom=17,H=config.thickness;
+ const {ctx,w,h}=canvasSetup('profile'),maxT=Math.ceil(maximum/25)*25,l=52,r=17,top=38,bottom=17,H=frame.s.thickness??config.thickness;
  const X=temp=>l+temp/maxT*(w-l-r),Y=depth=>top+depth/H*(h-top-bottom);
  for(let i=0;i<=4;i++){const value=i*maxT/4,x=X(value);ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,h-bottom);ctx.strokeStyle=palette.grid;ctx.lineWidth=.7;ctx.stroke();label(ctx,fmt(value),x,top-11,palette.text,10,'center');}
  for(let i=0;i<=4;i++){const depth=i*H/4,y=Y(depth);ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(w-r,y);ctx.strokeStyle=palette.grid;ctx.stroke();label(ctx,fmt(depth,depth%1?1:0),l-8,y+3,palette.text,9,'right');}

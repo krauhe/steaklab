@@ -22,10 +22,10 @@ const PANS={iron:{label:'Cast iron',mass:2,cp:460,k:55,rho:7200,emissivity:.75},
 // Loose foil is represented only by reduced effective heat loss to the room.
 // No foil heat capacity, condensation, moisture trapping or seal is resolved.
 const REST_MODES={air:{convection:1,radiation:1},foil:{convection:.4,radiation:.5},pan:{convection:1,radiation:1}};
-const DEFAULTS={meat:'beef',thickness:25,diameter:14,aspect:.78,initial:5,pan:'iron',wetness:.5,contact:1,nr:18,nz:24,panNr:14,panNw:4,ambient:22,panInitial:22,maxHeatWatts:1800,powerExponent:1,losses:true,evaporation:true,panRadiation:true};
+const DEFAULTS={meat:'beef',thickness:25,diameter:14,aspect:.78,initial:5,pan:'iron',wetness:.5,contact:1,nr:18,nz:24,panNr:14,panNw:4,ambient:22,panInitial:22,maxHeatWatts:1800,powerExponent:1,losses:true,evaporation:true,panRadiation:true,shrinkage:true};
 const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
 function number(v,fallback,lo,hi){return Number.isFinite(+v)?clamp(+v,lo,hi):fallback;}
-function normalized(input){const c={...DEFAULTS,...input};for(const [key,lo,hi] of [['thickness',8,60],['diameter',8,22],['aspect',.45,1],['initial',0,30],['wetness',0,1],['contact',.5,1.5],['ambient',0,40],['panInitial',0,400],['maxHeatWatts',100,6000],['powerExponent',.5,3],['nr',6,48],['nz',8,64],['panNr',6,64],['panNw',2,16]])c[key]=number(c[key],DEFAULTS[key],lo,hi);c.nr=2*Math.round(c.nr/2);c.nz=2*Math.round(c.nz/2);c.panNr=Math.round(c.panNr);c.panNw=Math.round(c.panNw);if(!MATERIALS[c.meat])c.meat='beef';if(!PANS[c.pan])c.pan='iron';return c;}
+function normalized(input){const c={...DEFAULTS,...input};for(const [key,lo,hi] of [['thickness',8,60],['diameter',8,22],['aspect',.45,1],['initial',0,30],['wetness',0,1],['contact',.5,1.5],['ambient',0,40],['panInitial',0,400],['maxHeatWatts',100,6000],['powerExponent',.5,3],['nr',6,48],['nz',8,64],['panNr',6,64],['panNw',2,16]])c[key]=number(c[key],DEFAULTS[key],lo,hi);c.nr=2*Math.round(c.nr/2);c.nz=2*Math.round(c.nz/2);c.panNr=Math.round(c.panNr);c.panNw=Math.round(c.panNw);if(!MATERIALS[c.meat])c.meat='beef';if(!PANS[c.pan])c.pan='iron';c.shrinkage=c.shrinkage!==false;return c;}
 // One litre of water plus the selected pan, both starting at the same temperature.
 // A lumped inverse estimate of pan input, not electrical nameplate power.
 // Convection (8 W/m²K) and radiation from exposed water and outer pan surfaces
@@ -169,6 +169,7 @@ function panSideRadiation(mesh,geometry,bottomSide,T,pan,ambient,panEmissivity,m
 class Engine{
  constructor(input={}){
   this.config=normalized(input);this.material=MATERIALS[this.config.meat];this.panMaterial=PANS[this.config.pan];this.mesh=buildMesh(this.config,this.material);this.panMesh=buildPanMesh(this.config,this.panMaterial,this.mesh);
+  this.shrinkProgress=0;this.shrinkHistory=new Float64Array(this.mesh.nodes.length);
   const n=this.mesh.nodes.length;this.T=new Float64Array(n).fill(this.config.initial);this.flux=new Float64Array(n);this.water=new Float64Array(n);
   this.doses=[new Float64Array(this.mesh.nr+1),new Float64Array(this.mesh.nr+1)];
   this.panT=new Float64Array(this.panMesh.nodes.length).fill(this.config.panInitial);this.panFlux=new Float64Array(this.panT.length);this.panCapacity=this.panMesh.capacities.reduce((s,x)=>s+x,0);
@@ -176,7 +177,7 @@ class Engine{
   this.energyInput=0;this.energyLost=0;this.panArea=this.panMesh.area;
   this.panRadiationGeometry=buildPanRadiation(this.mesh);
   // Distributed tissue water plus a mesh-independent superficial film. Vapor
-  // is assumed to escape immediately; no pressure/diffusion/shrinkage solve.
+  // is assumed to escape immediately; no pressure/diffusion or drip-loss solve.
   // Keeping heat capacities fixed makes the simplified energy budget explicit.
   for(let i=0;i<n;i++)this.water[i]=this.mesh.mass[i]/this.material.cp*this.material.water+this.mesh.boundaryArea[i]*.12*this.config.wetness;
   this.initialWater=this.water.reduce((a,b)=>a+b,0);this.initialEnergy=this.energy();
@@ -188,9 +189,44 @@ class Engine{
  get panContactTemp(){let heat=0;for(let i=0;i<this.panMesh.bottomCount;i++)heat+=this.panMesh.contactArea[i]*this.panT[i];return heat/this.mesh.area;}
  energy(){let result=0;for(let i=0;i<this.panT.length;i++)result+=this.panMesh.capacities[i]*(this.panT[i]-this.config.ambient);for(let i=0;i<this.T.length;i++)result+=this.mesh.mass[i]*(this.T[i]-this.config.ambient);return result;}
  clone(){
-  const copy=Object.assign(Object.create(Engine.prototype),this);copy.config={...this.config};copy.T=Float64Array.from(this.T);copy.flux=new Float64Array(this.T.length);copy.water=Float64Array.from(this.water);copy.doses=this.doses.map(d=>Float64Array.from(d));
+  const copy=Object.assign(Object.create(Engine.prototype),this);copy.config={...this.config};copy.T=Float64Array.from(this.T);copy.flux=new Float64Array(this.T.length);copy.water=Float64Array.from(this.water);copy.doses=this.doses.map(d=>Float64Array.from(d));copy.shrinkHistory=Float64Array.from(this.shrinkHistory);
+  copy.mesh={...this.mesh,nodes:this.mesh.nodes.map(n=>({...n})),triangles:this.mesh.triangles.map(t=>t.slice()),edges:this.mesh.edges.map(e=>e.slice()),faceA:this.mesh.faceA.map(n=>({...n})),faceB:this.mesh.faceB.map(n=>({...n})),side:this.mesh.side.map(n=>({...n}))};
+  for(const key of ['mass','diag','boundaryArea'])copy.mesh[key]=Float64Array.from(this.mesh[key]);
+  copy.edgeI=Int32Array.from(this.edgeI);copy.edgeJ=Int32Array.from(this.edgeJ);copy.edgeG=Float64Array.from(this.edgeG);
+  copy.panRadiationGeometry=buildPanRadiation(copy.mesh);
   copy.panT=Float64Array.from(this.panT);copy.panFlux=new Float64Array(this.panT.length);copy.panMesh={...this.panMesh,nodes:this.panMesh.nodes.map(n=>({...n})),edges:this.panMesh.edges.map(e=>e.slice()),contact:this.panMesh.contact.map(e=>e.slice())};
   for(const key of ['masses','capacities','diag','contactArea','burnerWeights'])copy.panMesh[key]=Float64Array.from(this.panMesh[key]);return copy;
+ }
+ // Phenomenological affine deformation of minced patties, not a mechanics or
+ // fat-rendering model. Temperature-history activation is mass weighted.
+ // Full activation reduces diameter by 20% and raises thickness by 30%.
+ // These deliberately illustrative coefficients do not predict a recipe's
+ // measured shrinkage. Nodes follow material: heat capacity, water and crust
+ // remain attached to them. The smaller volume implies effective densification;
+ // expelled liquid/fat, pressure, elastic work and doming are not resolved.
+ updateGeometry(progress){
+  if(!Number.isFinite(progress))throw new Error('Shrinkage progress must be finite.');
+  if(this.config.meat!=='minced'||!this.config.shrinkage||this.phase==='ready')return false;
+  const next=clamp(Math.max(this.shrinkProgress,progress),0,1);
+  if(next<=this.shrinkProgress)return false;
+  const c={...this.config,diameter:this.config.diameter*(1-.2*next),thickness:this.config.thickness*(1+.3*next)},mesh=buildMesh(c,this.material);
+  // Never replace material capacities with the capacity of the deformed volume.
+  // Keeping temperatures and capacities unchanged conserves sensible energy.
+  mesh.mass=this.mesh.mass;this.mesh=mesh;this.shrinkProgress=next;
+  this.edgeI=Int32Array.from(mesh.edges,e=>e[0]);this.edgeJ=Int32Array.from(mesh.edges,e=>e[1]);this.edgeG=Float64Array.from(mesh.edges,e=>e[2]);
+  const contactMesh=buildPanMesh(this.config,this.panMaterial,mesh);
+  this.panMesh.contact=contactMesh.contact;this.panMesh.contactArea=contactMesh.contactArea;
+  // Existing pan state, including capacities added by oil, is left untouched.
+  this.panRadiationGeometry=buildPanRadiation(mesh);return true;
+ }
+ updateShrinkage(){
+  if(this.config.meat!=='minced'||!this.config.shrinkage||this.phase==='ready')return;
+  let weighted=0,total=0;
+  for(let i=0;i<this.T.length;i++){const x=clamp((this.T[i]-40)/40,0,1),a=x*x*(3-2*x);this.shrinkHistory[i]=Math.max(this.shrinkHistory[i],a);weighted+=this.mesh.mass[i]*this.shrinkHistory[i];total+=this.mesh.mass[i];}
+  const desired=weighted/total;
+  // Rebuild at bounded increments rather than every thermal substep. Snapshots
+  // report the actual mesh dimensions, keeping displayed and solved shape equal.
+  if(desired-this.shrinkProgress>=.005||desired>=1-1e-12)this.updateGeometry(desired);
  }
  hasPanContact(){return this.phase==='cooking'||this.phase==='resting'&&this.restMode==='pan';}
  action(type,value){
@@ -274,13 +310,13 @@ class Engine{
    for(let side=0;side<2;side++)for(let r=0;r<faces[side].length;r++){const temp=T[faces[side][r].i];if(temp>120)this.doses[side][r]+=dt*Math.exp(Math.min(15,(temp-150)/25))/180;}
   }
   for(let i=0;i<PT.length;i++){PT[i]+=(burnerEnergy*pm.burnerWeights[i]+PF[i]*dt)/pm.capacities[i];if(!Number.isFinite(PT[i])||PT[i]< -273.15)throw new Error('Pan thermal solver became unstable.');}
-  this.energyLost+=lost*dt;
+  this.energyLost+=lost*dt;this.updateShrinkage();
  }
  observe(){
   const m=this.mesh,face=nodes=>nodes.reduce((s,n)=>s+this.T[n.i]*n.area,0)/m.area;
   const browns=[],burns=[];
   for(let s=0;s<2;s++){let b=0,c=0;for(let r=0;r<this.doses[s].length;r++){const d=this.doses[s][r],area=m.faceA[r].area;b+=area*(1-Math.exp(-d));c+=area*(1-Math.exp(-Math.max(0,d-3)*.7));}browns.push(100*b/m.area);burns.push(100*c/m.area);}
-  return{time:this.time,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
+  return{time:this.time,diameter:this.config.diameter*(1-.2*this.shrinkProgress),thickness:m.H*1000,shrinkProgress:this.shrinkProgress,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
  }
 }
 globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,estimateBoilCalibration,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
