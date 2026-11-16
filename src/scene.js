@@ -8,6 +8,9 @@ function draw(o){
  const s=frame.s,small=!compact&&w<560,elevation=28*Math.PI/180,se=Math.sin(elevation),ce=Math.cos(elevation);
  const D=s.diameter??c.diameter,a=D*5,b=a*c.aspect,H=s.thickness??c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
  const theta=(s.bottomSide===0?0:Math.PI)-Math.PI+Math.PI*ease;
+ const roundness=s.roundness??0;
+ // Interpolate the same meridian segments used by the finite elements.
+ const radiusAt=v=>{const zz=Math.max(0,Math.min(1,v))*mesh.nz,j=Math.min(mesh.nz-1,Math.floor(zz)),f=zz-j;return SteakPhysics.shapeRadius(j/mesh.nz,roundness)*(1-f)+SteakPhysics.shapeRadius((j+1)/mesh.nz,roundness)*f;};
  // Reserve the entire turn/lift envelope once per geometry. Neither the scale
  // nor the camera center depends on the action, its progress, or the meat side.
  const envelopeH=c.thickness*(c.meat==='minced'&&c.shrinkage!==false?1.3:1),envelopeB=c.diameter*5*c.aspect,halfH=envelopeH/2,flipLift=Math.max(0,envelopeB-halfH);
@@ -114,12 +117,16 @@ function draw(o){
  const base=(s.phase==='ready'?70.7:.7)+(motion?.type==='add'?70*(1-ease):takingOff?30*Math.sin(Math.PI*p):0),top=project(0,0,base+H),bottom=project(0,0,base);
  ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=11;ctx.shadowOffsetY=5;ctx.beginPath();ctx.ellipse(...project(0,0,1),a*scale,b*scale*se,0,0,Math.PI*2);ctx.fillStyle='#11160e77';ctx.fill();ctx.restore();
  let physicalPoint=null;
- if(rotating){
-  const cos=Math.cos(theta),sin=Math.sin(theta),lift=Math.max(0,b-H/2)*Math.abs(sin)+8*Math.sin(Math.PI*p);
+ if(rotating||roundness>0){
+  const angle=rotating?theta:(s.bottomSide===0?0:Math.PI),cos=Math.cos(angle),sin=Math.sin(angle),lift=rotating?Math.max(0,b-H/2)*Math.abs(sin)+8*Math.sin(Math.PI*p):0;
   physicalPoint=(x,y,z)=>{const yy=y*cos-(z-H/2)*sin,zz=y*sin+(z-H/2)*cos+H/2+base+lift;return{screen:project(x,yy,zz),depth:yy*ce+zz*se};};
   const faces=[],addFace=(pts,rgb,shade=1)=>{const v=pts.map(v=>physicalPoint(...v));faces.push({points:v.map(v=>v.screen),depth:v.reduce((sum,v)=>sum+v.depth,0)/v.length,color:'rgb('+rgb.map(v=>Math.round(v*shade)).join(',')+')'});};
-  for(let i=0;i<48;i++){const u=i/48*Math.PI*2,v=(i+1)/48*Math.PI*2;for(let j=0;j<8;j++){const z0=j/8*H,z1=(j+1)/8*H,temp=sample(1,(j+.5)/8),f=Math.max(0,Math.min(1,(temp-35)/65)),raw=['beef','minced'].includes(c.meat)?[148,65,60]:[200,146,125],rgb=mode==='heat'?heatRGB(temp):raw.map((v,k)=>v+([147,110,77][k]-v)*f);addFace([[a*Math.cos(u),b*Math.sin(u),z0],[a*Math.cos(v),b*Math.sin(v),z0],[a*Math.cos(v),b*Math.sin(v),z1],[a*Math.cos(u),b*Math.sin(u),z1]],rgb,.8);}
-   for(const side of [0,1])for(let j=0;j<10;j++){const r0=j/10,r1=(j+1)/10,r=(r0+r1)/2,ang=(u+v)/2,rgb=mode==='heat'?heatRGB(sample(r,side)):texture(r,(Math.cos(ang)*r+1)*70,(Math.sin(ang)*r+1)*55,side);addFace([[a*r0*Math.cos(u),b*r0*Math.sin(u),side*H],[a*r1*Math.cos(u),b*r1*Math.sin(u),side*H],[a*r1*Math.cos(v),b*r1*Math.sin(v),side*H],[a*r0*Math.cos(v),b*r0*Math.sin(v),side*H]],rgb,.94);}
+  for(let i=0;i<64;i++){const u=i/64*Math.PI*2,v=(i+1)/64*Math.PI*2,ang=(u+v)/2;
+   for(let j=0;j<mesh.nz;j++){const v0=j/mesh.nz,v1=(j+1)/mesh.nz,z0=v0*H,z1=v1*H,r0=radiusAt(v0),r1=radiusAt(v1),temp=sample(1,(v0+v1)/2),f=Math.max(0,Math.min(1,(temp-35)/65)),raw=['beef','minced'].includes(c.meat)?[148,65,60]:[200,146,125],rgb=mode==='heat'?heatRGB(temp):raw.map((v,k)=>v+([147,110,77][k]-v)*f);
+    const nx=Math.cos(ang),ny=Math.sin(ang),nz=-(r1-r0)*Math.sqrt(a*b)/(z1-z0),norm=Math.hypot(nx,ny,nz),worldNy=ny*cos-nz*sin,worldNz=ny*sin+nz*cos,shade=.64+.32*Math.max(0,(-.3*nx+.35*worldNy+.85*worldNz)/norm);
+    addFace([[a*r0*Math.cos(u),b*r0*Math.sin(u),z0],[a*r0*Math.cos(v),b*r0*Math.sin(v),z0],[a*r1*Math.cos(v),b*r1*Math.sin(v),z1],[a*r1*Math.cos(u),b*r1*Math.sin(u),z1]],rgb,shade);
+   }
+   for(const side of [0,1])for(let j=0;j<mesh.nr;j++){const r0=j/mesh.nr,r1=(j+1)/mesh.nr,r=(r0+r1)/2,cap=radiusAt(side),rgb=mode==='heat'?heatRGB(sample(r,side)):texture(r,(Math.cos(ang)*r+1)*70,(Math.sin(ang)*r+1)*55,side);addFace([[a*cap*r0*Math.cos(u),b*cap*r0*Math.sin(u),side*H],[a*cap*r1*Math.cos(u),b*cap*r1*Math.sin(u),side*H],[a*cap*r1*Math.cos(v),b*cap*r1*Math.sin(v),side*H],[a*cap*r0*Math.cos(v),b*cap*r0*Math.sin(v),side*H]],rgb,.94);}
   }
   faces.sort((a,b)=>a.depth-b.depth);for(const f of faces)polygon(f.points,f.color,f.color);
  }else{ for(let j=0;j<16;j++)for(let i=0;i<70;i++){
@@ -158,19 +165,20 @@ function draw(o){
  if(!compact)label(ctx,compact?'CENTER SECTION':'CENTER SECTION · TRUE PROPORTIONS',sx,sy-(compact?25:43),'#bdcbae',small?8:9);
  if(!compact)label(ctx,'Same scale for diameter and thickness',sx,sy-27,'#788b6d',8);
  const surface=sectionCanvas;surface.width=240;surface.height=Math.max(12,Math.ceil(sh*2));const oc=surface.getContext('2d'),im=oc.createImageData(surface.width,surface.height);
- for(let y=0;y<surface.height;y++)for(let x=0;x<240;x++){const r=Math.abs(x/239*2-1),z=s.bottomSide===0?1-y/(surface.height-1):y/(surface.height-1),rgb=heatRGB(sample(r,z)),i=4*(y*240+x);im.data[i]=rgb[0];im.data[i+1]=rgb[1];im.data[i+2]=rgb[2];im.data[i+3]=255;}oc.putImageData(im,0,0);
- const xy=(r,z,sign=1)=>[sx+sw/2+sign*r/mesh.R*sw/2,sy+(s.bottomSide===0?1-z/mesh.H:z/mesh.H)*sh];
- ctx.save();ctx.beginPath();ctx.rect(sx,sy,sw,sh);ctx.clip();ctx.drawImage(surface,sx,sy,sw,sh);
- for(const level of [40,55,65,100,140,180]){ctx.beginPath();for(const tri of mesh.triangles){const points=[];for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3],ta=T[a],tb=T[b];if((ta<=level&&tb>level)||(tb<=level&&ta>level)){const f=(level-ta)/(tb-ta),na=mesh.nodes[a],nb=mesh.nodes[b];points.push({r:na.r+(nb.r-na.r)*f,z:na.z+(nb.z-na.z)*f});}}if(points.length===2)for(const sign of [-1,1])points.forEach((p,k)=>k?ctx.lineTo(...xy(p.r,p.z,sign)):ctx.moveTo(...xy(p.r,p.z,sign)));}ctx.strokeStyle='#f5f7d7b0';ctx.lineWidth=.85;ctx.stroke();}
- ctx.restore();ctx.strokeStyle='#c6dca077';ctx.lineWidth=.8;ctx.strokeRect(sx,sy,sw,sh);
- const labels=[];for(const level of [40,55,65,100,140,180]){let prev=sample(.55,s.bottomSide===0?1:0)-level;for(let k=1;k<=100;k++){const v=sample(.55,s.bottomSide===0?1-k/100:k/100)-level;if(prev*v<0){const y=sy+sh*k/100;if(y>sy+5&&y<sy+sh-5&&!labels.some(a=>Math.abs(a-y)<11)){labels.push(y);ctx.fillStyle='#102016b0';ctx.fillRect(sx+sw*.75-12,y-5,25,10);label(ctx,level+'°',sx+sw*.75,y+3,'#eff7df',8,'center');}}prev=v;}}
- label(ctx,topSide===0?'A':'B',sx,sy-8,topSide===0?'#f18b77':'#8fc9ba',11);label(ctx,s.bottomSide===0?'A':'B',sx,sy+sh+14,s.bottomSide===0?'#f18b77':'#8fc9ba',11);
- const centerY=sy+sh/2;ctx.beginPath();ctx.arc(sx+sw/2,centerY,2.7,0,Math.PI*2);ctx.fillStyle='#effadf';ctx.fill();ctx.beginPath();ctx.moveTo(sx+sw/2+5,centerY);ctx.lineTo(sx+sw+6,centerY);ctx.strokeStyle='#e0efb9a0';ctx.stroke();label(ctx,fmt(s.core)+'°',sx+sw+9,centerY+3,'#e1f3b5',10);
+ for(let y=0;y<surface.height;y++)for(let x=0;x<240;x++){const r=Math.abs(x/239*2-1),z=s.bottomSide===0?1-y/(surface.height-1):y/(surface.height-1),radius=radiusAt(z);if(r>radius)continue;const rgb=heatRGB(sample(r/radius,z)),i=4*(y*240+x);im.data[i]=rgb[0];im.data[i+1]=rgb[1];im.data[i+2]=rgb[2];im.data[i+3]=255;}oc.putImageData(im,0,0);
+ const xy=(r,z,sign=1)=>[sx+sw/2+sign*r*sw/2,sy+(s.bottomSide===0?1-z:z)*sh];
+ const currentNodes=mesh.nodes.map((_,i)=>{const v=Math.floor(i/(mesh.nr+1))/mesh.nz;return{r:(i%(mesh.nr+1))/mesh.nr*radiusAt(v),z:v};});
+ const sectionPath=()=>{ctx.beginPath();for(let j=0;j<=mesh.nz;j++){const v=j/mesh.nz,q=xy(radiusAt(v),v);j?ctx.lineTo(...q):ctx.moveTo(...q);}for(let j=mesh.nz;j>=0;j--){const v=j/mesh.nz;ctx.lineTo(...xy(radiusAt(v),v,-1));}ctx.closePath();};
+ ctx.save();sectionPath();ctx.clip();ctx.drawImage(surface,sx,sy,sw,sh);
+ for(const level of [40,55,65,100,140,180]){ctx.beginPath();for(const tri of mesh.triangles){const points=[];for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3],ta=T[a],tb=T[b];if((ta<=level&&tb>level)||(tb<=level&&ta>level)){const f=(level-ta)/(tb-ta),na=currentNodes[a],nb=currentNodes[b];points.push({r:na.r+(nb.r-na.r)*f,z:na.z+(nb.z-na.z)*f});}}if(points.length===2)for(const sign of [-1,1])points.forEach((p,k)=>k?ctx.lineTo(...xy(p.r,p.z,sign)):ctx.moveTo(...xy(p.r,p.z,sign)));}ctx.strokeStyle='#f5f7d7b0';ctx.lineWidth=.85;ctx.stroke();}
+ ctx.restore();sectionPath();ctx.strokeStyle='#c6dca077';ctx.lineWidth=.8;ctx.stroke();
+ label(ctx,topSide===0?'A':'B',sx+sw*(1-radiusAt(1))/2,sy-8,topSide===0?'#f18b77':'#8fc9ba',11);label(ctx,s.bottomSide===0?'A':'B',sx+sw*(1-radiusAt(0))/2,sy+sh+14,s.bottomSide===0?'#f18b77':'#8fc9ba',11);
+ const centerY=sy+sh/2;
  // Dimension lines provide an unambiguous check against the geometry controls.
  const dy=sy+sh+(compact?20:31);ctx.strokeStyle='#839578';ctx.beginPath();ctx.moveTo(sx,dy);ctx.lineTo(sx+sw,dy);for(const x of [sx,sx+sw]){ctx.moveTo(x,dy-3);ctx.lineTo(x,dy+3);}ctx.moveTo(sx-11,sy);ctx.lineTo(sx-11,sy+sh);for(const y of [sy,sy+sh]){ctx.moveTo(sx-14,y);ctx.lineTo(sx-8,y);}ctx.stroke();
  label(ctx,fmt(D,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H,1)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
  if(changed)label(ctx,'Diameter −'+fmt((1-D/c.diameter)*100)+'% · thickness +'+fmt((H/c.thickness-1)*100)+'%',sx+sw/2,dy+(compact?27:31),'#dcf589',11,'center');
- if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx,sy+sh+3,sw,2);}
+ if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx+sw*(1-radiusAt(0))/2,sy+sh+3,sw*radiusAt(0),2);}
 }
 globalThis.SteakScene={draw};
 })();

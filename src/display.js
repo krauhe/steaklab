@@ -47,5 +47,15 @@ function freeActionRow(events,rows,id,time,preferred,width,duration,spacing=48){
  const candidates=Array.from({length:max+1},(_,i)=>i).sort((a,b)=>Math.abs(a-preferred)-Math.abs(b-preferred)||a-b);
  return candidates.find(row=>!events.some(e=>e.id!==id&&rows[e.id]===row&&Math.abs(e.time-time)*width/duration<spacing))??max+1;
 }
-globalThis.SteakDisplay=Object.freeze({scalePosition,temperatureAtPosition,heatRGB,legendStops,freeActionRow});
+function sampleDeformedField(mesh,T,r,z,q,radiusFn){
+ const u=clamp(r,1),v=clamp(z,1),rr=u*mesh.nr,zz=v*mesh.nz,i=Math.min(Math.floor(rr),mesh.nr-1),j=Math.min(Math.floor(zz),mesh.nz-1),y=zz-j,n=j*(mesh.nr+1)+i;
+ // Locate the physical point in the two affine triangles of the curved cell.
+ // A rectangular material grid is not a rectangular physical FEM element.
+ const f0=radiusFn(j/mesh.nz,q),f1=radiusFn((j+1)/mesh.nz,q),point=u*(f0*(1-y)+f1*y),ar=i/mesh.nr*f0,br=(i+1)/mesh.nr*f0,cr=(i+1)/mesh.nr*f1,dr=i/mesh.nr*f1;
+ const wb=(point-ar-y*(cr-ar))/(br-ar);
+ if(wb>=0)return T[n]*(1-y-wb)+T[n+1]*wb+T[n+mesh.nr+2]*y;
+ const wc=(point-ar-y*(dr-ar))/(cr-dr);return T[n]*(1-y)+T[n+mesh.nr+2]*wc+T[n+mesh.nr+1]*(y-wc);
+}
+
+globalThis.SteakDisplay=Object.freeze({scalePosition,temperatureAtPosition,heatRGB,legendStops,freeActionRow,sampleDeformedField});
 })();

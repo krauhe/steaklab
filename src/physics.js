@@ -58,12 +58,16 @@ function estimateBoilCalibration({seconds,startTemperature=20,boilingTemperature
  const watts=(lo+hi)/2;
  return{watts,storedWatts,lossWatts:watts-storedWatts};
 }
+// Material-coordinate radius of the rounded, symmetrically truncated spheroid.
+// Flat cap radii are 70% of the widest radius at full rounding. Coefficient .51
+// is illustrative, not a fitted biomechanical law. Renderer shares this mapping.
+function shapeRadius(v,roundness=0){return 1-roundness+roundness*Math.sqrt(Math.max(0,1-.51*(2*v-1)**2));}
 function buildMesh(c,material){
  const nr=c.nr,nz=c.nz,a=c.diameter/200,b=a*c.aspect,R=Math.sqrt(a*b),H=c.thickness/1000;
- const perimeter=PI*(3*(a+b)-Math.sqrt((3*a+b)*(a+3*b)));
+ const perimeter=PI*(3*(a+b)-Math.sqrt((3*a+b)*(a+3*b))),roundness=clamp(c.roundness||0,0,1),contactRadius=R*shapeRadius(0,roundness);
  const nodes=[],triangles=[],mass=new Float64Array((nr+1)*(nz+1)),diag=new Float64Array(mass.length),graph=new Map();
  const id=(i,j)=>j*(nr+1)+i;
- for(let j=0;j<=nz;j++)for(let i=0;i<=nr;i++)nodes.push({r:R*i/nr,z:H*j/nz});
+ for(let j=0;j<=nz;j++)for(let i=0;i<=nr;i++)nodes.push({r:R*i/nr*shapeRadius(j/nz,roundness),z:H*j/nz});
  function tri(ids){
   triangles.push(ids);const [p,q,s]=ids.map(i=>nodes[i]);
   const determinant=(q.r-p.r)*(s.z-p.z)-(s.r-p.r)*(q.z-p.z),A=Math.abs(determinant)/2;
@@ -72,20 +76,28 @@ function buildMesh(c,material){
   for(let x=0;x<3;x++)mass[ids[x]]+=material.rho*material.cp*2*PI*A*(rs+rr[x])/12;
   for(let x=0;x<3;x++)for(let y=x+1;y<3;y++){
    const conductance=-material.k*2*PI*A*rs/3*(grad[x][0]*grad[y][0]+grad[x][1]*grad[y][1]);
-   if(conductance < -1e-10)throw new Error('Mesh violates monotone conduction assumption.');
-   if(conductance<=1e-16)continue;
+   // Curvature can create obtuse triangles. Preserve signed Galerkin terms;
+   // dropping them would silently change the PDE. The assembled stiffness is
+   // symmetric positive semidefinite, but no discrete maximum principle is
+   // claimed on this mesh. The absolute row sum bounds explicit stability.
+   if(Math.abs(conductance)<=1e-16)continue;
    const i=Math.min(ids[x],ids[y]),j=Math.max(ids[x],ids[y]),key=i*mass.length+j;
    graph.set(key,(graph.get(key)||0)+conductance);
   }
  }
  for(let j=0;j<nz;j++)for(let i=0;i<nr;i++){tri([id(i,j),id(i+1,j),id(i+1,j+1)]);tri([id(i,j),id(i+1,j+1),id(i,j+1)]);}
- const edges=[];for(const [key,g]of graph){const i=Math.floor(key/mass.length),j=key%mass.length;edges.push([i,j,g]);diag[i]+=g;diag[j]+=g;}
- const radialArea=new Float64Array(nr+1),dr=R/nr;
+ const edges=[];for(const [key,g]of graph){const i=Math.floor(key/mass.length),j=key%mass.length;edges.push([i,j,g]);diag[i]+=Math.abs(g);diag[j]+=Math.abs(g);}
+ const radialArea=new Float64Array(nr+1),dr=contactRadius/nr;
  for(let i=0;i<nr;i++){const r=i*dr,s=(i+1)*dr;radialArea[i]+=2*PI*dr*(2*r+s)/6;radialArea[i+1]+=2*PI*dr*(r+2*s)/6;}
  const faceA=[],faceB=[],side=[],boundaryArea=new Float64Array(mass.length);
  for(let i=0;i<=nr;i++){faceA.push({i:id(i,0),area:radialArea[i]});faceB.push({i:id(i,nz),area:radialArea[i]});boundaryArea[id(i,0)]+=radialArea[i];boundaryArea[id(i,nz)]+=radialArea[i];}
- for(let j=0;j<=nz;j++){const area=perimeter*H/nz*(j===0||j===nz?.5:1);side.push({i:id(nr,j),area});boundaryArea[id(nr,j)]+=area;}
- return{nr,nz,R,H,nodes,triangles,mass,diag,edges,faceA,faceB,side,boundaryArea,area:PI*R*R,perimeter};
+ for(let j=0;j<=nz;j++)side.push({i:id(nr,j),area:0});
+ // Integrate the surface of each revolved meridian segment with linear nodal
+ // weights. The existing ellipse-perimeter correction remains approximate.
+ for(let j=0;j<nz;j++){const p=nodes[id(nr,j)],q=nodes[id(nr,j+1)],ds=Math.hypot(q.r-p.r,q.z-p.z),factor=perimeter/R*ds;
+  side[j].area+=factor*(2*p.r+q.r)/6;side[j+1].area+=factor*(p.r+2*q.r)/6;}
+ for(const n of side)boundaryArea[n.i]+=n.area;
+ return{nr,nz,R,H,nodes,triangles,mass,diag,edges,faceA,faceB,side,boundaryArea,area:PI*contactRadius*contactRadius,faceArea:PI*contactRadius*contactRadius,contactArea:PI*contactRadius*contactRadius,maxArea:PI*R*R,contactRadius,roundness,perimeter};
 }
 // Through-thickness temperature is lumped, but conduction along the pan shell
 // is resolved. Effective k/rho (especially hybrid/coated presets) are illustrative.
@@ -130,17 +142,30 @@ function sidePanViewFactor(R,z,panRadius=.14,samples=64){
  for(let k=0;k<samples;k++){const phi=(k+.5)*dphi,co=Math.cos(phi),si=Math.sin(phi),L=-R*co+Math.sqrt(panRadius*panRadius-R*R*si*si);sum+=co*(Math.atan2(L,z)-z*L/(L*L+z*z));}
  return clamp(sum*dphi/PI,0,.5);
 }
+// Cosine-weighted solid-angle integration over downward directions. For this
+// convex surface, an outward ray cannot re-enter the body. The contact disk is
+// excluded; the overhanging curved underside sees the remaining pan annulus.
+// Midpoint angular quadrature is an approximation, not patch-to-patch radiosity.
+const panRayGrid=Array.from({length:32},(_,i)=>{const mu=(i+.5)/32,h=Math.sqrt(1-mu*mu);return Array.from({length:64},(_,j)=>({mu,x:h*Math.cos(2*PI*(j+.5)/64),y:h*Math.sin(2*PI*(j+.5)/64)}));}).flat();
+function curvedPanViewFactor(r,z,nr,nz,contactRadius,panRadius=.14){
+ let sum=0;
+ for(const ray of panRayGrid){const cosine=nr*ray.x-nz*ray.mu;if(cosine<=0)continue;const t=z/ray.mu,x=r+t*ray.x,y=t*ray.y,rr=x*x+y*y;
+  if(rr>=contactRadius*contactRadius&&rr<=panRadius*panRadius)sum+=cosine;}
+ return clamp(2*sum/panRayGrid.length,0,1);
+}
 function buildPanRadiation(mesh,panRadius=.14){
  const view=[new Float64Array(mesh.side.length),new Float64Array(mesh.side.length)],offset=1/(2*Math.sqrt(3));
- // Integrate the view factor with linear boundary shape functions, rather than
- // assigning a point value at the zero-height corner. Precompute both poses.
+ // Integrate shape functions on the actual curved boundary. Keep the original
+ // cylinder quadrature exactly when roundness=0 for backwards compatibility.
  for(let j=0;j<mesh.side.length-1;j++){
-  const z0=mesh.nodes[mesh.side[j].i].z,z1=mesh.nodes[mesh.side[j+1].i].z,dz=z1-z0;
-  for(const u of [.5-offset,.5+offset])for(let bottom=0;bottom<2;bottom++){
-   const z=z0+u*dz,f=sidePanViewFactor(mesh.R,bottom?mesh.H-z:z,panRadius),weight=mesh.perimeter*dz*.5*f;
-   view[bottom][j]+=weight*(1-u);view[bottom][j+1]+=weight*u;
+  const p=mesh.nodes[mesh.side[j].i],q=mesh.nodes[mesh.side[j+1].i],dr=q.r-p.r,dz=q.z-p.z,ds=Math.hypot(dr,dz);
+  for(const u of [.5-offset,.5+offset]){
+   const r=p.r+u*dr,z=p.z+u*dz;
+   if(mesh.roundness>0){const f=curvedPanViewFactor(r,z,dz/ds,-dr/ds,mesh.contactRadius,panRadius),weight=mesh.perimeter/mesh.R*r*ds*.5*f;view[0][j]+=weight*(1-u);view[0][j+1]+=weight*u;}
+   else for(let bottom=0;bottom<2;bottom++){const f=sidePanViewFactor(mesh.R,bottom?mesh.H-z:z,panRadius),weight=mesh.perimeter*dz*.5*f;view[bottom][j]+=weight*(1-u);view[bottom][j+1]+=weight*u;}
   }
  }
+ if(mesh.roundness>0)for(let j=0;j<view[0].length;j++)view[1][j]=view[0][view[0].length-1-j];
  const exposed=PI*panRadius*panRadius-mesh.area;
  for(const pose of view){let seen=0;for(let j=0;j<pose.length;j++){seen+=pose[j];pose[j]/=mesh.side[j].area;}if(seen>=exposed)throw new Error('Pan-side view factors exceed exposed pan area.');}
  return{view,exposed};
@@ -197,19 +222,19 @@ class Engine{
   copy.panT=Float64Array.from(this.panT);copy.panFlux=new Float64Array(this.panT.length);copy.panMesh={...this.panMesh,nodes:this.panMesh.nodes.map(n=>({...n})),edges:this.panMesh.edges.map(e=>e.slice()),contact:this.panMesh.contact.map(e=>e.slice())};
   for(const key of ['masses','capacities','diag','contactArea','burnerWeights'])copy.panMesh[key]=Float64Array.from(this.panMesh[key]);return copy;
  }
- // Phenomenological affine deformation of minced patties, not a mechanics or
+ // Phenomenological rounded deformation of minced patties, not a mechanics or
  // fat-rendering model. Temperature-history activation is mass weighted.
  // Full activation reduces diameter by 20% and raises thickness by 30%.
  // These deliberately illustrative coefficients do not predict a recipe's
  // measured shrinkage. Nodes follow material: heat capacity, water and crust
  // remain attached to them. The smaller volume implies effective densification;
- // expelled liquid/fat, pressure, elastic work and doming are not resolved.
+ // expelled liquid/fat, pressure and elastic work are not resolved.
  updateGeometry(progress){
   if(!Number.isFinite(progress))throw new Error('Shrinkage progress must be finite.');
   if(this.config.meat!=='minced'||!this.config.shrinkage||this.phase==='ready')return false;
   const next=clamp(Math.max(this.shrinkProgress,progress),0,1);
   if(next<=this.shrinkProgress)return false;
-  const c={...this.config,diameter:this.config.diameter*(1-.2*next),thickness:this.config.thickness*(1+.3*next)},mesh=buildMesh(c,this.material);
+  const c={...this.config,diameter:this.config.diameter*(1-.2*next),thickness:this.config.thickness*(1+.3*next),roundness:next},mesh=buildMesh(c,this.material);
   // Never replace material capacities with the capacity of the deformed volume.
   // Keeping temperatures and capacities unchanged conserves sensible energy.
   mesh.mass=this.mesh.mass;this.mesh=mesh;this.shrinkProgress=next;
@@ -282,7 +307,7 @@ class Engine{
    PF[i]-=q;lost+=q;
   }
   if(this.phase!=='ready'){
-   for(let e=0;e<this.edgeG.length;e++){const i=this.edgeI[e],j=this.edgeJ[e],q=this.edgeG[e]*(T[j]-T[i]);F[i]+=q;F[j]-=q;}
+   for(let e=0;e<this.edgeG.length;e++){const g=this.edgeG[e];if(g<0)continue;const i=this.edgeI[e],j=this.edgeJ[e],q=g*(T[j]-T[i]);F[i]+=q;F[j]-=q;}
    const faces=[m.faceA,m.faceB],cover=this.phase==='resting'?REST_MODES[this.restMode]||REST_MODES.air:REST_MODES.air;
    for(let side=0;side<2;side++){
     const contact=panContact&&this.bottomSide===side,h=this.contactH();
@@ -301,6 +326,17 @@ class Engine{
     for(let i=0;i<pm.bottomCount;i++){const area=pm.nodes[i].area-pm.contactArea[i];PF[i]+=area/exposed*radiation.panFlux+this.panMaterial.emissivity*SIGMA*area*(fourth-(PT[i]+273.15)**4);}
     lost+=radiation.roomLoss;
    }
+   // Bound-preserving conservative correction for anti-diffusive fluxes on
+   // obtuse triangles. Signed FEM assembly is retained; negative-edge heat is
+   // accepted in full unless it would breach current global thermal bounds.
+   // Limiting transfers (never clipping temperature) preserves energy exactly.
+   // This nonlinear stabilization can reduce accuracy near sharp extrema.
+   if(m.roundness>0){
+    let lower=ambient,upper=ambient;for(const value of T){lower=Math.min(lower,value);upper=Math.max(upper,value);}for(const value of PT){lower=Math.min(lower,value);upper=Math.max(upper,value);}
+    for(let e=0;e<this.edgeG.length;e++){const g=this.edgeG[e];if(g>=0)continue;const i=this.edgeI[e],j=this.edgeJ[e],q=g*(T[j]-T[i])*dt,recipient=q>=0?i:j,donor=q>=0?j:i;
+     const receive=Math.max(0,m.mass[recipient]*(upper-T[recipient])-F[recipient]*dt),give=Math.max(0,m.mass[donor]*(T[donor]-lower)+F[donor]*dt),transfer=Math.min(Math.abs(q),receive,give)/dt;
+     F[recipient]+=transfer;F[donor]-=transfer;}
+   }
    for(let i=0;i<T.length;i++){
     let energy=F[i]*dt;
     if(c.evaporation&&this.water[i]>0&&energy>0){const excess=energy-Math.max(0,100-T[i])*m.mass[i];if(excess>0){const ev=Math.min(this.water[i],excess/LATENT);this.water[i]-=ev;this.evaporated+=ev;energy-=ev*LATENT;}}
@@ -316,8 +352,8 @@ class Engine{
   const m=this.mesh,face=nodes=>nodes.reduce((s,n)=>s+this.T[n.i]*n.area,0)/m.area;
   const browns=[],burns=[];
   for(let s=0;s<2;s++){let b=0,c=0;for(let r=0;r<this.doses[s].length;r++){const d=this.doses[s][r],area=m.faceA[r].area;b+=area*(1-Math.exp(-d));c+=area*(1-Math.exp(-Math.max(0,d-3)*.7));}browns.push(100*b/m.area);burns.push(100*c/m.area);}
-  return{time:this.time,diameter:this.config.diameter*(1-.2*this.shrinkProgress),thickness:m.H*1000,shrinkProgress:this.shrinkProgress,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
+  return{time:this.time,diameter:this.config.diameter*(1-.2*this.shrinkProgress),thickness:m.H*1000,shrinkProgress:this.shrinkProgress,roundness:m.roundness,contactDiameter:2*m.contactRadius*100,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
  }
 }
-globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,estimateBoilCalibration,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
+globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,estimateBoilCalibration,shapeRadius,curvedPanViewFactor,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
 })();

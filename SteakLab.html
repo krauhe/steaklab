@@ -298,7 +298,7 @@ const packs = {en: {
     ],
     "aspect": [
       "Ellipse — from round to oval",
-      "The controls describe the initial, raw shape. Minced patties become narrower and thicker during heating in both the drawing and the heat calculation; current dimensions appear beside the meat. The shape parameter is the ratio between the minor and major diameters. 1.00 is a circle; 0.50 gives half as much width as length. With a fixed major diameter, both mass and contact area change. The physics uses a circle of equivalent area and corrects the lateral surface area. The exact three-dimensional temperature field of a strongly oval steak is therefore not calculated."
+      "The controls describe the initial, raw shape. Minced patties become narrower, thicker and rounder during heating in both the drawing and the heat calculation; current dimensions appear beside the meat. The shape parameter is the ratio between the minor and major diameters. 1.00 is a circle; 0.50 gives half as much width as length. With a fixed major diameter, both mass and contact area change. The physics uses a circle of equivalent area and corrects the lateral surface area. The exact three-dimensional temperature field of a strongly oval steak is therefore not calculated."
     ],
     "initial": [
       "Initial meat temperature",
@@ -379,7 +379,7 @@ const packs = {en: {
   },
   "sources": "<p><a href=\"https://www.foedevarestyrelsen.dk/kost-og-foedevarer/alt-om-mad/god-koekkenhygiejne/fem-raad-til-god-koekkenhygiejne/varm-mad-ordentligt-op\" target=\"_blank\" rel=\"noopener\">Danish Veterinary and Food Administration (Fødevarestyrelsen): Heat food properly</a> — thorough cooking, and the difference between whole cuts of meat and minced meat.</p><p><a href=\"https://www.foodsafety.gov/food-safety-charts/safe-minimum-internal-temperatures\" target=\"_blank\" rel=\"noopener\">FoodSafety.gov: Safe Minimum Internal Temperatures</a> — 63 °C and a 3-minute rest for whole cuts of beef and pork, 74 °C for poultry, and 63 °C for fish. U.S. consumer guidance.</p><p><a href=\"https://www.food.dtu.dk/nyheder/nyhed?id=9bfa54ee-c186-4b32-8d5d-ffa1cf05055f\" target=\"_blank\" rel=\"noopener\">DTU National Food Institute: Why slow cooking works</a> — at least 75 °C for poultry, minced meat, and diced/cubed meat.</p><p><a href=\"https://jsdokken.com/dolfinx-tutorial/main/chapter2/heat_equation.html\" target=\"_blank\" rel=\"noopener\">FEniCSx: The heat equation</a> — background on FEM and transient heat conduction; this app uses explicit time integration.</p><p><a href=\"https://arxiv.org/abs/1908.10787\" target=\"_blank\" rel=\"noopener\">Shehadeh et al.: A Mathematical Model for Meat Cooking</a> — example of a more advanced model with moisture transport and shrinkage; that model is not implemented here.</p><p class=\"small\">Sources verified November 13, 2026. Physical constants and browning parameters here are illustrative modeling choices, not a calibration against a specific cut of meat.</p>"
 }};
-packs.en.model="<p>SteakLab is a place to experiment. <b>864 linear triangular elements</b> resolve an axisymmetric section through the meat, including radial heat flow and conduction through its thickness. A separate axisymmetric pan shell resolves concentric floor annuli and rising wall bands.</p><h3>From stove to center</h3><p><code>M · dT/dt + K · T = Q</code></p><p>A lumped mass matrix and conservative heat fluxes couple the nodes. The pan loses exactly the heat transferred to the meat. Explicit time steps are at most 0.2 seconds and are reduced further by a stability bound.</p><h3>Included</h3><p>Geometry, local pan conduction, a circular 9 cm-radius burner footprint, thermal mass, contact resistance over an equal-area circular meat footprint, oil, convection, radiation between the exposed pan floor, meat sides and room, local tissue-water reservoirs, a surface water film, flipping and carryover heat. Isotherms come from the actual FEM field. Browning is a separate empirical thermal-dose calculation.</p><h3>Simplifications</h3><p>The pan shell has spatial floor and wall temperatures but remains uniform through its metal thickness. The ellipse becomes an equal-area circle with corrected side area, including its contact footprint on the pan. Pan-side radiation uses geometric view factors, grey-diffuse exchange and an exposed-area effective emitting temperature; it does not resolve radiation between every pair of pan cells and meat patches. The handle, local angular variation and rising hot-air flow are not resolved. Material properties are constant. Minced patties use an irreversible temperature-dependent shape approximation: diameter can decrease by up to 20% and thickness increase by up to 30%. These limits are illustrative, not fitted to a fat percentage or a particular patty. The FEM conduction geometry, exposed areas, contact footprint and radiation geometry change with the patty. Material-node heat capacities remain constant, so deformation alone neither creates nor removes heat. This implies an effective density change; it does not simulate expelled juice or rendered fat. The shape remains an elliptical cylinder, not a full curved mechanical shape. Whole-cut geometry stays fixed: fiber-direction-dependent contraction is not yet implemented. There is no internal liquid transport, fat rendering, anatomy, full 3D thermal geometry or bacterial-inactivation model. Rest can be in open air, under loosely tented foil, or on the pan with the stove off. Foil uses illustrative convection/radiation factors of 0.4/0.5 without resolving condensation. Vapor is assumed to escape immediately. Heat capacity stays fixed as water is lost; minced-patty volume can change through the separate shape approximation. The model has not been calibrated against a particular stove or cut.</p><table><tr><th>Ingredient</th><th>k · W/(m·K)</th><th>ρ · kg/m³</th><th>c · J/(kg·K)</th></tr>{materialRows}</table><h3>Suggested cooking plans</h3><p>The planner simulates preheating the future contact footprint, power reductions, minute-by-minute flips and a prospective rest. Preheat refers to the contact-area-weighted pan temperature, not its whole-pan mean. It searches for the selected peak <b>center</b> temperature during that rest. It does not prove that every part of real food has reached a safe temperature. Review the coldest-point display and use a real thermometer.</p><h3>Food safety</h3><p>Color and crust do not establish food safety. The Minced preset represents a minced beef patty, using illustrative beef thermal properties. It requires a modeled coldest-point temperature of 75 °C before removal and does not offer rare doneness. Other presets represent whole, non-mechanically-tenderized cuts. Injected or mechanically tenderized meat needs a different assessment. Follow official guidance for the actual food.</p><h3>Sources and further reading</h3>";
+packs.en.model="<p>SteakLab is a place to experiment. <b>864 linear triangular elements</b> resolve an axisymmetric section through the meat, including radial heat flow and conduction through its thickness. A separate axisymmetric pan shell resolves concentric floor annuli and rising wall bands.</p><h3>From stove to center</h3><p><code>M · dT/dt + K · T = Q</code></p><p>A lumped mass matrix and conservative heat fluxes couple the nodes. Curved elements retain signed FEM stiffness terms; a conservative flux limiter prevents spurious temperature extrema on obtuse triangles. This stabilization can reduce accuracy near sharp gradients. The pan loses exactly the heat transferred to the meat. Explicit time steps are at most 0.2 seconds and are reduced further by a stability bound.</p><h3>Included</h3><p>Geometry, local pan conduction, a circular 9 cm-radius burner footprint, thermal mass, contact resistance over an equal-area circular meat footprint, oil, convection, radiation between the exposed pan floor, meat sides and room, local tissue-water reservoirs, a surface water film, flipping and carryover heat. Isotherms come from the actual FEM field. Browning is a separate empirical thermal-dose calculation.</p><h3>Simplifications</h3><p>The pan shell has spatial floor and wall temperatures but remains uniform through its metal thickness. The ellipse becomes an equal-area circle with corrected side area, including its contact footprint on the pan. Pan-side radiation uses geometric view factors (numerical direction quadrature on the curved patty), grey-diffuse exchange and an exposed-area effective emitting temperature; it does not resolve radiation between every pair of pan cells and meat patches. The handle, local angular variation and rising hot-air flow are not resolved. Material properties are constant. Minced patties use an irreversible temperature-dependent shape approximation: diameter can decrease by up to 20% and thickness increase by up to 30%. These limits are illustrative, not fitted to a fat percentage or a particular patty. The FEM conduction geometry, exposed areas, contact footprint and radiation geometry change with the patty. Material-node heat capacities remain constant, so deformation alone neither creates nor removes heat. This implies an effective density change; it does not simulate expelled juice or rendered fat. As shrinkage progresses, the cylindrical meridian becomes a flattened rounded shape with smaller flat contact faces. The radius of each fully rounded face is 70% of the widest radius. Both the visible surface and the FEM triangles use this same geometry. This is an imposed shape law, not a mechanics or fat-rendering calculation. Whole-cut geometry stays fixed: fiber-direction-dependent contraction is not yet implemented. There is no internal liquid transport, fat rendering, anatomy, full 3D thermal geometry or bacterial-inactivation model. Rest can be in open air, under loosely tented foil, or on the pan with the stove off. Foil uses illustrative convection/radiation factors of 0.4/0.5 without resolving condensation. Vapor is assumed to escape immediately. Heat capacity stays fixed as water is lost; minced-patty volume can change through the separate shape approximation. The model has not been calibrated against a particular stove or cut.</p><table><tr><th>Ingredient</th><th>k · W/(m·K)</th><th>ρ · kg/m³</th><th>c · J/(kg·K)</th></tr>{materialRows}</table><h3>Suggested cooking plans</h3><p>The planner simulates preheating the future contact footprint, power reductions, minute-by-minute flips and a prospective rest. Preheat refers to the contact-area-weighted pan temperature, not its whole-pan mean. It searches for the selected peak <b>center</b> temperature during that rest. It does not prove that every part of real food has reached a safe temperature. Review the coldest-point display and use a real thermometer.</p><h3>Food safety</h3><p>Color and crust do not establish food safety. The Minced preset represents a minced beef patty, using illustrative beef thermal properties. It requires a modeled coldest-point temperature of 75 °C before removal and does not offer rare doneness. Other presets represent whole, non-mechanically-tenderized cuts. Injected or mechanically tenderized meat needs a different assessment. Follow official guidance for the actual food.</p><h3>Sources and further reading</h3>";
 packs.en.sources += '<p><a href="https://doc.comsol.com/6.4/doc/com.comsol.help.heat/heat_ug_theory.07.056.html" target="_blank" rel="noopener">COMSOL: surface radiation and geometric view factors</a> — background for pan-to-side radiation; SteakLab uses its own simplified geometry and implementation.</p>';
 packs.en.help.colorScale=['A non-linear temperature color scale','Focus mode gives 84% of the color range to 40–80 °C, so small cooking-temperature differences are easier to see. The temperature labels follow this non-linear mapping. It changes only the colors, never the computed temperatures. Choose Linear to spread the colors evenly across 0–220 °C. Values outside the range use the endpoint colors.'];
 packs.en.help.contact=['Contact heat transfer — a multiplier','This is a multiplier of the assumed heat-transfer coefficient between pan and meat, not a fraction of area. 1.00× is the reference; 1.50× transfers 50% more heat for the same temperature difference. The range represents uncertainty and variations in surface contact. Oil separately improves the reference coefficient.'];
@@ -459,12 +459,16 @@ function estimateBoilCalibration({seconds,startTemperature=20,boilingTemperature
  const watts=(lo+hi)/2;
  return{watts,storedWatts,lossWatts:watts-storedWatts};
 }
+// Material-coordinate radius of the rounded, symmetrically truncated spheroid.
+// Flat cap radii are 70% of the widest radius at full rounding. Coefficient .51
+// is illustrative, not a fitted biomechanical law. Renderer shares this mapping.
+function shapeRadius(v,roundness=0){return 1-roundness+roundness*Math.sqrt(Math.max(0,1-.51*(2*v-1)**2));}
 function buildMesh(c,material){
  const nr=c.nr,nz=c.nz,a=c.diameter/200,b=a*c.aspect,R=Math.sqrt(a*b),H=c.thickness/1000;
- const perimeter=PI*(3*(a+b)-Math.sqrt((3*a+b)*(a+3*b)));
+ const perimeter=PI*(3*(a+b)-Math.sqrt((3*a+b)*(a+3*b))),roundness=clamp(c.roundness||0,0,1),contactRadius=R*shapeRadius(0,roundness);
  const nodes=[],triangles=[],mass=new Float64Array((nr+1)*(nz+1)),diag=new Float64Array(mass.length),graph=new Map();
  const id=(i,j)=>j*(nr+1)+i;
- for(let j=0;j<=nz;j++)for(let i=0;i<=nr;i++)nodes.push({r:R*i/nr,z:H*j/nz});
+ for(let j=0;j<=nz;j++)for(let i=0;i<=nr;i++)nodes.push({r:R*i/nr*shapeRadius(j/nz,roundness),z:H*j/nz});
  function tri(ids){
   triangles.push(ids);const [p,q,s]=ids.map(i=>nodes[i]);
   const determinant=(q.r-p.r)*(s.z-p.z)-(s.r-p.r)*(q.z-p.z),A=Math.abs(determinant)/2;
@@ -473,20 +477,28 @@ function buildMesh(c,material){
   for(let x=0;x<3;x++)mass[ids[x]]+=material.rho*material.cp*2*PI*A*(rs+rr[x])/12;
   for(let x=0;x<3;x++)for(let y=x+1;y<3;y++){
    const conductance=-material.k*2*PI*A*rs/3*(grad[x][0]*grad[y][0]+grad[x][1]*grad[y][1]);
-   if(conductance < -1e-10)throw new Error('Mesh violates monotone conduction assumption.');
-   if(conductance<=1e-16)continue;
+   // Curvature can create obtuse triangles. Preserve signed Galerkin terms;
+   // dropping them would silently change the PDE. The assembled stiffness is
+   // symmetric positive semidefinite, but no discrete maximum principle is
+   // claimed on this mesh. The absolute row sum bounds explicit stability.
+   if(Math.abs(conductance)<=1e-16)continue;
    const i=Math.min(ids[x],ids[y]),j=Math.max(ids[x],ids[y]),key=i*mass.length+j;
    graph.set(key,(graph.get(key)||0)+conductance);
   }
  }
  for(let j=0;j<nz;j++)for(let i=0;i<nr;i++){tri([id(i,j),id(i+1,j),id(i+1,j+1)]);tri([id(i,j),id(i+1,j+1),id(i,j+1)]);}
- const edges=[];for(const [key,g]of graph){const i=Math.floor(key/mass.length),j=key%mass.length;edges.push([i,j,g]);diag[i]+=g;diag[j]+=g;}
- const radialArea=new Float64Array(nr+1),dr=R/nr;
+ const edges=[];for(const [key,g]of graph){const i=Math.floor(key/mass.length),j=key%mass.length;edges.push([i,j,g]);diag[i]+=Math.abs(g);diag[j]+=Math.abs(g);}
+ const radialArea=new Float64Array(nr+1),dr=contactRadius/nr;
  for(let i=0;i<nr;i++){const r=i*dr,s=(i+1)*dr;radialArea[i]+=2*PI*dr*(2*r+s)/6;radialArea[i+1]+=2*PI*dr*(r+2*s)/6;}
  const faceA=[],faceB=[],side=[],boundaryArea=new Float64Array(mass.length);
  for(let i=0;i<=nr;i++){faceA.push({i:id(i,0),area:radialArea[i]});faceB.push({i:id(i,nz),area:radialArea[i]});boundaryArea[id(i,0)]+=radialArea[i];boundaryArea[id(i,nz)]+=radialArea[i];}
- for(let j=0;j<=nz;j++){const area=perimeter*H/nz*(j===0||j===nz?.5:1);side.push({i:id(nr,j),area});boundaryArea[id(nr,j)]+=area;}
- return{nr,nz,R,H,nodes,triangles,mass,diag,edges,faceA,faceB,side,boundaryArea,area:PI*R*R,perimeter};
+ for(let j=0;j<=nz;j++)side.push({i:id(nr,j),area:0});
+ // Integrate the surface of each revolved meridian segment with linear nodal
+ // weights. The existing ellipse-perimeter correction remains approximate.
+ for(let j=0;j<nz;j++){const p=nodes[id(nr,j)],q=nodes[id(nr,j+1)],ds=Math.hypot(q.r-p.r,q.z-p.z),factor=perimeter/R*ds;
+  side[j].area+=factor*(2*p.r+q.r)/6;side[j+1].area+=factor*(p.r+2*q.r)/6;}
+ for(const n of side)boundaryArea[n.i]+=n.area;
+ return{nr,nz,R,H,nodes,triangles,mass,diag,edges,faceA,faceB,side,boundaryArea,area:PI*contactRadius*contactRadius,faceArea:PI*contactRadius*contactRadius,contactArea:PI*contactRadius*contactRadius,maxArea:PI*R*R,contactRadius,roundness,perimeter};
 }
 // Through-thickness temperature is lumped, but conduction along the pan shell
 // is resolved. Effective k/rho (especially hybrid/coated presets) are illustrative.
@@ -531,17 +543,30 @@ function sidePanViewFactor(R,z,panRadius=.14,samples=64){
  for(let k=0;k<samples;k++){const phi=(k+.5)*dphi,co=Math.cos(phi),si=Math.sin(phi),L=-R*co+Math.sqrt(panRadius*panRadius-R*R*si*si);sum+=co*(Math.atan2(L,z)-z*L/(L*L+z*z));}
  return clamp(sum*dphi/PI,0,.5);
 }
+// Cosine-weighted solid-angle integration over downward directions. For this
+// convex surface, an outward ray cannot re-enter the body. The contact disk is
+// excluded; the overhanging curved underside sees the remaining pan annulus.
+// Midpoint angular quadrature is an approximation, not patch-to-patch radiosity.
+const panRayGrid=Array.from({length:32},(_,i)=>{const mu=(i+.5)/32,h=Math.sqrt(1-mu*mu);return Array.from({length:64},(_,j)=>({mu,x:h*Math.cos(2*PI*(j+.5)/64),y:h*Math.sin(2*PI*(j+.5)/64)}));}).flat();
+function curvedPanViewFactor(r,z,nr,nz,contactRadius,panRadius=.14){
+ let sum=0;
+ for(const ray of panRayGrid){const cosine=nr*ray.x-nz*ray.mu;if(cosine<=0)continue;const t=z/ray.mu,x=r+t*ray.x,y=t*ray.y,rr=x*x+y*y;
+  if(rr>=contactRadius*contactRadius&&rr<=panRadius*panRadius)sum+=cosine;}
+ return clamp(2*sum/panRayGrid.length,0,1);
+}
 function buildPanRadiation(mesh,panRadius=.14){
  const view=[new Float64Array(mesh.side.length),new Float64Array(mesh.side.length)],offset=1/(2*Math.sqrt(3));
- // Integrate the view factor with linear boundary shape functions, rather than
- // assigning a point value at the zero-height corner. Precompute both poses.
+ // Integrate shape functions on the actual curved boundary. Keep the original
+ // cylinder quadrature exactly when roundness=0 for backwards compatibility.
  for(let j=0;j<mesh.side.length-1;j++){
-  const z0=mesh.nodes[mesh.side[j].i].z,z1=mesh.nodes[mesh.side[j+1].i].z,dz=z1-z0;
-  for(const u of [.5-offset,.5+offset])for(let bottom=0;bottom<2;bottom++){
-   const z=z0+u*dz,f=sidePanViewFactor(mesh.R,bottom?mesh.H-z:z,panRadius),weight=mesh.perimeter*dz*.5*f;
-   view[bottom][j]+=weight*(1-u);view[bottom][j+1]+=weight*u;
+  const p=mesh.nodes[mesh.side[j].i],q=mesh.nodes[mesh.side[j+1].i],dr=q.r-p.r,dz=q.z-p.z,ds=Math.hypot(dr,dz);
+  for(const u of [.5-offset,.5+offset]){
+   const r=p.r+u*dr,z=p.z+u*dz;
+   if(mesh.roundness>0){const f=curvedPanViewFactor(r,z,dz/ds,-dr/ds,mesh.contactRadius,panRadius),weight=mesh.perimeter/mesh.R*r*ds*.5*f;view[0][j]+=weight*(1-u);view[0][j+1]+=weight*u;}
+   else for(let bottom=0;bottom<2;bottom++){const f=sidePanViewFactor(mesh.R,bottom?mesh.H-z:z,panRadius),weight=mesh.perimeter*dz*.5*f;view[bottom][j]+=weight*(1-u);view[bottom][j+1]+=weight*u;}
   }
  }
+ if(mesh.roundness>0)for(let j=0;j<view[0].length;j++)view[1][j]=view[0][view[0].length-1-j];
  const exposed=PI*panRadius*panRadius-mesh.area;
  for(const pose of view){let seen=0;for(let j=0;j<pose.length;j++){seen+=pose[j];pose[j]/=mesh.side[j].area;}if(seen>=exposed)throw new Error('Pan-side view factors exceed exposed pan area.');}
  return{view,exposed};
@@ -598,19 +623,19 @@ class Engine{
   copy.panT=Float64Array.from(this.panT);copy.panFlux=new Float64Array(this.panT.length);copy.panMesh={...this.panMesh,nodes:this.panMesh.nodes.map(n=>({...n})),edges:this.panMesh.edges.map(e=>e.slice()),contact:this.panMesh.contact.map(e=>e.slice())};
   for(const key of ['masses','capacities','diag','contactArea','burnerWeights'])copy.panMesh[key]=Float64Array.from(this.panMesh[key]);return copy;
  }
- // Phenomenological affine deformation of minced patties, not a mechanics or
+ // Phenomenological rounded deformation of minced patties, not a mechanics or
  // fat-rendering model. Temperature-history activation is mass weighted.
  // Full activation reduces diameter by 20% and raises thickness by 30%.
  // These deliberately illustrative coefficients do not predict a recipe's
  // measured shrinkage. Nodes follow material: heat capacity, water and crust
  // remain attached to them. The smaller volume implies effective densification;
- // expelled liquid/fat, pressure, elastic work and doming are not resolved.
+ // expelled liquid/fat, pressure and elastic work are not resolved.
  updateGeometry(progress){
   if(!Number.isFinite(progress))throw new Error('Shrinkage progress must be finite.');
   if(this.config.meat!=='minced'||!this.config.shrinkage||this.phase==='ready')return false;
   const next=clamp(Math.max(this.shrinkProgress,progress),0,1);
   if(next<=this.shrinkProgress)return false;
-  const c={...this.config,diameter:this.config.diameter*(1-.2*next),thickness:this.config.thickness*(1+.3*next)},mesh=buildMesh(c,this.material);
+  const c={...this.config,diameter:this.config.diameter*(1-.2*next),thickness:this.config.thickness*(1+.3*next),roundness:next},mesh=buildMesh(c,this.material);
   // Never replace material capacities with the capacity of the deformed volume.
   // Keeping temperatures and capacities unchanged conserves sensible energy.
   mesh.mass=this.mesh.mass;this.mesh=mesh;this.shrinkProgress=next;
@@ -683,7 +708,7 @@ class Engine{
    PF[i]-=q;lost+=q;
   }
   if(this.phase!=='ready'){
-   for(let e=0;e<this.edgeG.length;e++){const i=this.edgeI[e],j=this.edgeJ[e],q=this.edgeG[e]*(T[j]-T[i]);F[i]+=q;F[j]-=q;}
+   for(let e=0;e<this.edgeG.length;e++){const g=this.edgeG[e];if(g<0)continue;const i=this.edgeI[e],j=this.edgeJ[e],q=g*(T[j]-T[i]);F[i]+=q;F[j]-=q;}
    const faces=[m.faceA,m.faceB],cover=this.phase==='resting'?REST_MODES[this.restMode]||REST_MODES.air:REST_MODES.air;
    for(let side=0;side<2;side++){
     const contact=panContact&&this.bottomSide===side,h=this.contactH();
@@ -702,6 +727,17 @@ class Engine{
     for(let i=0;i<pm.bottomCount;i++){const area=pm.nodes[i].area-pm.contactArea[i];PF[i]+=area/exposed*radiation.panFlux+this.panMaterial.emissivity*SIGMA*area*(fourth-(PT[i]+273.15)**4);}
     lost+=radiation.roomLoss;
    }
+   // Bound-preserving conservative correction for anti-diffusive fluxes on
+   // obtuse triangles. Signed FEM assembly is retained; negative-edge heat is
+   // accepted in full unless it would breach current global thermal bounds.
+   // Limiting transfers (never clipping temperature) preserves energy exactly.
+   // This nonlinear stabilization can reduce accuracy near sharp extrema.
+   if(m.roundness>0){
+    let lower=ambient,upper=ambient;for(const value of T){lower=Math.min(lower,value);upper=Math.max(upper,value);}for(const value of PT){lower=Math.min(lower,value);upper=Math.max(upper,value);}
+    for(let e=0;e<this.edgeG.length;e++){const g=this.edgeG[e];if(g>=0)continue;const i=this.edgeI[e],j=this.edgeJ[e],q=g*(T[j]-T[i])*dt,recipient=q>=0?i:j,donor=q>=0?j:i;
+     const receive=Math.max(0,m.mass[recipient]*(upper-T[recipient])-F[recipient]*dt),give=Math.max(0,m.mass[donor]*(T[donor]-lower)+F[donor]*dt),transfer=Math.min(Math.abs(q),receive,give)/dt;
+     F[recipient]+=transfer;F[donor]-=transfer;}
+   }
    for(let i=0;i<T.length;i++){
     let energy=F[i]*dt;
     if(c.evaporation&&this.water[i]>0&&energy>0){const excess=energy-Math.max(0,100-T[i])*m.mass[i];if(excess>0){const ev=Math.min(this.water[i],excess/LATENT);this.water[i]-=ev;this.evaporated+=ev;energy-=ev*LATENT;}}
@@ -717,10 +753,10 @@ class Engine{
   const m=this.mesh,face=nodes=>nodes.reduce((s,n)=>s+this.T[n.i]*n.area,0)/m.area;
   const browns=[],burns=[];
   for(let s=0;s<2;s++){let b=0,c=0;for(let r=0;r<this.doses[s].length;r++){const d=this.doses[s][r],area=m.faceA[r].area;b+=area*(1-Math.exp(-d));c+=area*(1-Math.exp(-Math.max(0,d-3)*.7));}browns.push(100*b/m.area);burns.push(100*c/m.area);}
-  return{time:this.time,diameter:this.config.diameter*(1-.2*this.shrinkProgress),thickness:m.H*1000,shrinkProgress:this.shrinkProgress,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
+  return{time:this.time,diameter:this.config.diameter*(1-.2*this.shrinkProgress),thickness:m.H*1000,shrinkProgress:this.shrinkProgress,roundness:m.roundness,contactDiameter:2*m.contactRadius*100,burnerWatts:this.actualWatts,pan:this.pan,panContactTemp:this.panContactTemp,panField:Array.from(this.panT),panMin:Math.min(...this.panT),panMax:Math.max(...this.panT),panRim:this.panT[this.panT.length-1],core:this.T[(m.nz/2)*(m.nr+1)],min:Math.min(...this.T),max:Math.max(...this.T),faceA:face(m.faceA),faceB:face(m.faceB),power:this.power,bottomSide:this.bottomSide,phase:this.phase,restMode:this.restMode,oil:this.oil,brownA:browns[0],brownB:browns[1],burnA:burns[0],burnB:burns[1],evaporated:this.evaporated*1000,mass:m.mass.reduce((a,b)=>a+b,0)/this.material.cp*1000,energyResidual:this.energy()-this.initialEnergy-this.energyInput+this.energyLost+this.evaporated*LATENT};
  }
 }
-globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,estimateBoilCalibration,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
+globalThis.SteakPhysics={Engine,MATERIALS,PANS,REST_MODES,DEFAULTS,estimateBoilCalibration,shapeRadius,curvedPanViewFactor,buildMesh,buildPanMesh,sidePanViewFactor,buildPanRadiation,panSideRadiation};
 })();
 </script>
 <script id="runner-code">/* Deterministic event scheduler, shared by worker, browser fallback and tests. */
@@ -764,7 +800,7 @@ function* suggestSteps(config,target){
  function forecast(){const copy=e.clone();copy.action('rest');copy.action('power',0);let peak=copy.observe().core;for(let t=0;t<restSeconds;t+=5){copy.step(Math.min(5,restSeconds-t));peak=Math.max(peak,copy.observe().core);}return{peak,afterRest:copy.observe().core,atRemoval:e.observe().core,minAtRemoval:e.observe().min};}
  const lastRemoval=2700-restSeconds;
  while(e.time<lastRemoval-1e-8){
-  if(!reduced&&e.time>=placed+60-1e-8){record('power',c.meat==='beef'||c.meat==='pork'?3:2);reduced=true;}
+  if(!reduced&&e.time>=placed+60-1e-8){if(!minced)record('power',c.meat==='beef'||c.meat==='pork'?3:2);reduced=true;}
   if(e.time>=flipAt-1e-8){record('flip');flipAt+=60;}
   const s=e.observe();
   // Minced-patty suggestions require the current whole modeled field to reach
@@ -836,7 +872,17 @@ function freeActionRow(events,rows,id,time,preferred,width,duration,spacing=48){
  const candidates=Array.from({length:max+1},(_,i)=>i).sort((a,b)=>Math.abs(a-preferred)-Math.abs(b-preferred)||a-b);
  return candidates.find(row=>!events.some(e=>e.id!==id&&rows[e.id]===row&&Math.abs(e.time-time)*width/duration<spacing))??max+1;
 }
-globalThis.SteakDisplay=Object.freeze({scalePosition,temperatureAtPosition,heatRGB,legendStops,freeActionRow});
+function sampleDeformedField(mesh,T,r,z,q,radiusFn){
+ const u=clamp(r,1),v=clamp(z,1),rr=u*mesh.nr,zz=v*mesh.nz,i=Math.min(Math.floor(rr),mesh.nr-1),j=Math.min(Math.floor(zz),mesh.nz-1),y=zz-j,n=j*(mesh.nr+1)+i;
+ // Locate the physical point in the two affine triangles of the curved cell.
+ // A rectangular material grid is not a rectangular physical FEM element.
+ const f0=radiusFn(j/mesh.nz,q),f1=radiusFn((j+1)/mesh.nz,q),point=u*(f0*(1-y)+f1*y),ar=i/mesh.nr*f0,br=(i+1)/mesh.nr*f0,cr=(i+1)/mesh.nr*f1,dr=i/mesh.nr*f1;
+ const wb=(point-ar-y*(cr-ar))/(br-ar);
+ if(wb>=0)return T[n]*(1-y-wb)+T[n+1]*wb+T[n+mesh.nr+2]*y;
+ const wc=(point-ar-y*(dr-ar))/(cr-dr);return T[n]*(1-y)+T[n+mesh.nr+2]*wc+T[n+mesh.nr+1]*(y-wc);
+}
+
+globalThis.SteakDisplay=Object.freeze({scalePosition,temperatureAtPosition,heatRGB,legendStops,freeActionRow,sampleDeformedField});
 })();
 </script>
 <script>/* Orthographic rendering only. Every world coordinate is in millimetres;
@@ -849,6 +895,9 @@ function draw(o){
  const s=frame.s,small=!compact&&w<560,elevation=28*Math.PI/180,se=Math.sin(elevation),ce=Math.cos(elevation);
  const D=s.diameter??c.diameter,a=D*5,b=a*c.aspect,H=s.thickness??c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
  const theta=(s.bottomSide===0?0:Math.PI)-Math.PI+Math.PI*ease;
+ const roundness=s.roundness??0;
+ // Interpolate the same meridian segments used by the finite elements.
+ const radiusAt=v=>{const zz=Math.max(0,Math.min(1,v))*mesh.nz,j=Math.min(mesh.nz-1,Math.floor(zz)),f=zz-j;return SteakPhysics.shapeRadius(j/mesh.nz,roundness)*(1-f)+SteakPhysics.shapeRadius((j+1)/mesh.nz,roundness)*f;};
  // Reserve the entire turn/lift envelope once per geometry. Neither the scale
  // nor the camera center depends on the action, its progress, or the meat side.
  const envelopeH=c.thickness*(c.meat==='minced'&&c.shrinkage!==false?1.3:1),envelopeB=c.diameter*5*c.aspect,halfH=envelopeH/2,flipLift=Math.max(0,envelopeB-halfH);
@@ -955,12 +1004,16 @@ function draw(o){
  const base=(s.phase==='ready'?70.7:.7)+(motion?.type==='add'?70*(1-ease):takingOff?30*Math.sin(Math.PI*p):0),top=project(0,0,base+H),bottom=project(0,0,base);
  ctx.save();ctx.shadowColor='#0009';ctx.shadowBlur=11;ctx.shadowOffsetY=5;ctx.beginPath();ctx.ellipse(...project(0,0,1),a*scale,b*scale*se,0,0,Math.PI*2);ctx.fillStyle='#11160e77';ctx.fill();ctx.restore();
  let physicalPoint=null;
- if(rotating){
-  const cos=Math.cos(theta),sin=Math.sin(theta),lift=Math.max(0,b-H/2)*Math.abs(sin)+8*Math.sin(Math.PI*p);
+ if(rotating||roundness>0){
+  const angle=rotating?theta:(s.bottomSide===0?0:Math.PI),cos=Math.cos(angle),sin=Math.sin(angle),lift=rotating?Math.max(0,b-H/2)*Math.abs(sin)+8*Math.sin(Math.PI*p):0;
   physicalPoint=(x,y,z)=>{const yy=y*cos-(z-H/2)*sin,zz=y*sin+(z-H/2)*cos+H/2+base+lift;return{screen:project(x,yy,zz),depth:yy*ce+zz*se};};
   const faces=[],addFace=(pts,rgb,shade=1)=>{const v=pts.map(v=>physicalPoint(...v));faces.push({points:v.map(v=>v.screen),depth:v.reduce((sum,v)=>sum+v.depth,0)/v.length,color:'rgb('+rgb.map(v=>Math.round(v*shade)).join(',')+')'});};
-  for(let i=0;i<48;i++){const u=i/48*Math.PI*2,v=(i+1)/48*Math.PI*2;for(let j=0;j<8;j++){const z0=j/8*H,z1=(j+1)/8*H,temp=sample(1,(j+.5)/8),f=Math.max(0,Math.min(1,(temp-35)/65)),raw=['beef','minced'].includes(c.meat)?[148,65,60]:[200,146,125],rgb=mode==='heat'?heatRGB(temp):raw.map((v,k)=>v+([147,110,77][k]-v)*f);addFace([[a*Math.cos(u),b*Math.sin(u),z0],[a*Math.cos(v),b*Math.sin(v),z0],[a*Math.cos(v),b*Math.sin(v),z1],[a*Math.cos(u),b*Math.sin(u),z1]],rgb,.8);}
-   for(const side of [0,1])for(let j=0;j<10;j++){const r0=j/10,r1=(j+1)/10,r=(r0+r1)/2,ang=(u+v)/2,rgb=mode==='heat'?heatRGB(sample(r,side)):texture(r,(Math.cos(ang)*r+1)*70,(Math.sin(ang)*r+1)*55,side);addFace([[a*r0*Math.cos(u),b*r0*Math.sin(u),side*H],[a*r1*Math.cos(u),b*r1*Math.sin(u),side*H],[a*r1*Math.cos(v),b*r1*Math.sin(v),side*H],[a*r0*Math.cos(v),b*r0*Math.sin(v),side*H]],rgb,.94);}
+  for(let i=0;i<64;i++){const u=i/64*Math.PI*2,v=(i+1)/64*Math.PI*2,ang=(u+v)/2;
+   for(let j=0;j<mesh.nz;j++){const v0=j/mesh.nz,v1=(j+1)/mesh.nz,z0=v0*H,z1=v1*H,r0=radiusAt(v0),r1=radiusAt(v1),temp=sample(1,(v0+v1)/2),f=Math.max(0,Math.min(1,(temp-35)/65)),raw=['beef','minced'].includes(c.meat)?[148,65,60]:[200,146,125],rgb=mode==='heat'?heatRGB(temp):raw.map((v,k)=>v+([147,110,77][k]-v)*f);
+    const nx=Math.cos(ang),ny=Math.sin(ang),nz=-(r1-r0)*Math.sqrt(a*b)/(z1-z0),norm=Math.hypot(nx,ny,nz),worldNy=ny*cos-nz*sin,worldNz=ny*sin+nz*cos,shade=.64+.32*Math.max(0,(-.3*nx+.35*worldNy+.85*worldNz)/norm);
+    addFace([[a*r0*Math.cos(u),b*r0*Math.sin(u),z0],[a*r0*Math.cos(v),b*r0*Math.sin(v),z0],[a*r1*Math.cos(v),b*r1*Math.sin(v),z1],[a*r1*Math.cos(u),b*r1*Math.sin(u),z1]],rgb,shade);
+   }
+   for(const side of [0,1])for(let j=0;j<mesh.nr;j++){const r0=j/mesh.nr,r1=(j+1)/mesh.nr,r=(r0+r1)/2,cap=radiusAt(side),rgb=mode==='heat'?heatRGB(sample(r,side)):texture(r,(Math.cos(ang)*r+1)*70,(Math.sin(ang)*r+1)*55,side);addFace([[a*cap*r0*Math.cos(u),b*cap*r0*Math.sin(u),side*H],[a*cap*r1*Math.cos(u),b*cap*r1*Math.sin(u),side*H],[a*cap*r1*Math.cos(v),b*cap*r1*Math.sin(v),side*H],[a*cap*r0*Math.cos(v),b*cap*r0*Math.sin(v),side*H]],rgb,.94);}
   }
   faces.sort((a,b)=>a.depth-b.depth);for(const f of faces)polygon(f.points,f.color,f.color);
  }else{ for(let j=0;j<16;j++)for(let i=0;i<70;i++){
@@ -999,19 +1052,20 @@ function draw(o){
  if(!compact)label(ctx,compact?'CENTER SECTION':'CENTER SECTION · TRUE PROPORTIONS',sx,sy-(compact?25:43),'#bdcbae',small?8:9);
  if(!compact)label(ctx,'Same scale for diameter and thickness',sx,sy-27,'#788b6d',8);
  const surface=sectionCanvas;surface.width=240;surface.height=Math.max(12,Math.ceil(sh*2));const oc=surface.getContext('2d'),im=oc.createImageData(surface.width,surface.height);
- for(let y=0;y<surface.height;y++)for(let x=0;x<240;x++){const r=Math.abs(x/239*2-1),z=s.bottomSide===0?1-y/(surface.height-1):y/(surface.height-1),rgb=heatRGB(sample(r,z)),i=4*(y*240+x);im.data[i]=rgb[0];im.data[i+1]=rgb[1];im.data[i+2]=rgb[2];im.data[i+3]=255;}oc.putImageData(im,0,0);
- const xy=(r,z,sign=1)=>[sx+sw/2+sign*r/mesh.R*sw/2,sy+(s.bottomSide===0?1-z/mesh.H:z/mesh.H)*sh];
- ctx.save();ctx.beginPath();ctx.rect(sx,sy,sw,sh);ctx.clip();ctx.drawImage(surface,sx,sy,sw,sh);
- for(const level of [40,55,65,100,140,180]){ctx.beginPath();for(const tri of mesh.triangles){const points=[];for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3],ta=T[a],tb=T[b];if((ta<=level&&tb>level)||(tb<=level&&ta>level)){const f=(level-ta)/(tb-ta),na=mesh.nodes[a],nb=mesh.nodes[b];points.push({r:na.r+(nb.r-na.r)*f,z:na.z+(nb.z-na.z)*f});}}if(points.length===2)for(const sign of [-1,1])points.forEach((p,k)=>k?ctx.lineTo(...xy(p.r,p.z,sign)):ctx.moveTo(...xy(p.r,p.z,sign)));}ctx.strokeStyle='#f5f7d7b0';ctx.lineWidth=.85;ctx.stroke();}
- ctx.restore();ctx.strokeStyle='#c6dca077';ctx.lineWidth=.8;ctx.strokeRect(sx,sy,sw,sh);
- const labels=[];for(const level of [40,55,65,100,140,180]){let prev=sample(.55,s.bottomSide===0?1:0)-level;for(let k=1;k<=100;k++){const v=sample(.55,s.bottomSide===0?1-k/100:k/100)-level;if(prev*v<0){const y=sy+sh*k/100;if(y>sy+5&&y<sy+sh-5&&!labels.some(a=>Math.abs(a-y)<11)){labels.push(y);ctx.fillStyle='#102016b0';ctx.fillRect(sx+sw*.75-12,y-5,25,10);label(ctx,level+'°',sx+sw*.75,y+3,'#eff7df',8,'center');}}prev=v;}}
- label(ctx,topSide===0?'A':'B',sx,sy-8,topSide===0?'#f18b77':'#8fc9ba',11);label(ctx,s.bottomSide===0?'A':'B',sx,sy+sh+14,s.bottomSide===0?'#f18b77':'#8fc9ba',11);
- const centerY=sy+sh/2;ctx.beginPath();ctx.arc(sx+sw/2,centerY,2.7,0,Math.PI*2);ctx.fillStyle='#effadf';ctx.fill();ctx.beginPath();ctx.moveTo(sx+sw/2+5,centerY);ctx.lineTo(sx+sw+6,centerY);ctx.strokeStyle='#e0efb9a0';ctx.stroke();label(ctx,fmt(s.core)+'°',sx+sw+9,centerY+3,'#e1f3b5',10);
+ for(let y=0;y<surface.height;y++)for(let x=0;x<240;x++){const r=Math.abs(x/239*2-1),z=s.bottomSide===0?1-y/(surface.height-1):y/(surface.height-1),radius=radiusAt(z);if(r>radius)continue;const rgb=heatRGB(sample(r/radius,z)),i=4*(y*240+x);im.data[i]=rgb[0];im.data[i+1]=rgb[1];im.data[i+2]=rgb[2];im.data[i+3]=255;}oc.putImageData(im,0,0);
+ const xy=(r,z,sign=1)=>[sx+sw/2+sign*r*sw/2,sy+(s.bottomSide===0?1-z:z)*sh];
+ const currentNodes=mesh.nodes.map((_,i)=>{const v=Math.floor(i/(mesh.nr+1))/mesh.nz;return{r:(i%(mesh.nr+1))/mesh.nr*radiusAt(v),z:v};});
+ const sectionPath=()=>{ctx.beginPath();for(let j=0;j<=mesh.nz;j++){const v=j/mesh.nz,q=xy(radiusAt(v),v);j?ctx.lineTo(...q):ctx.moveTo(...q);}for(let j=mesh.nz;j>=0;j--){const v=j/mesh.nz;ctx.lineTo(...xy(radiusAt(v),v,-1));}ctx.closePath();};
+ ctx.save();sectionPath();ctx.clip();ctx.drawImage(surface,sx,sy,sw,sh);
+ for(const level of [40,55,65,100,140,180]){ctx.beginPath();for(const tri of mesh.triangles){const points=[];for(let k=0;k<3;k++){const a=tri[k],b=tri[(k+1)%3],ta=T[a],tb=T[b];if((ta<=level&&tb>level)||(tb<=level&&ta>level)){const f=(level-ta)/(tb-ta),na=currentNodes[a],nb=currentNodes[b];points.push({r:na.r+(nb.r-na.r)*f,z:na.z+(nb.z-na.z)*f});}}if(points.length===2)for(const sign of [-1,1])points.forEach((p,k)=>k?ctx.lineTo(...xy(p.r,p.z,sign)):ctx.moveTo(...xy(p.r,p.z,sign)));}ctx.strokeStyle='#f5f7d7b0';ctx.lineWidth=.85;ctx.stroke();}
+ ctx.restore();sectionPath();ctx.strokeStyle='#c6dca077';ctx.lineWidth=.8;ctx.stroke();
+ label(ctx,topSide===0?'A':'B',sx+sw*(1-radiusAt(1))/2,sy-8,topSide===0?'#f18b77':'#8fc9ba',11);label(ctx,s.bottomSide===0?'A':'B',sx+sw*(1-radiusAt(0))/2,sy+sh+14,s.bottomSide===0?'#f18b77':'#8fc9ba',11);
+ const centerY=sy+sh/2;
  // Dimension lines provide an unambiguous check against the geometry controls.
  const dy=sy+sh+(compact?20:31);ctx.strokeStyle='#839578';ctx.beginPath();ctx.moveTo(sx,dy);ctx.lineTo(sx+sw,dy);for(const x of [sx,sx+sw]){ctx.moveTo(x,dy-3);ctx.lineTo(x,dy+3);}ctx.moveTo(sx-11,sy);ctx.lineTo(sx-11,sy+sh);for(const y of [sy,sy+sh]){ctx.moveTo(sx-14,y);ctx.lineTo(sx-8,y);}ctx.stroke();
  label(ctx,fmt(D,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H,1)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
  if(changed)label(ctx,'Diameter −'+fmt((1-D/c.diameter)*100)+'% · thickness +'+fmt((H/c.thickness-1)*100)+'%',sx+sw/2,dy+(compact?27:31),'#dcf589',11,'center');
- if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx,sy+sh+3,sw,2);}
+ if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx+sw*(1-radiusAt(0))/2,sy+sh+3,sw*radiusAt(0),2);}
 }
 globalThis.SteakScene={draw};
 })();
@@ -1139,12 +1193,13 @@ async function suggestPlan(){
 }
 function renderSuggestion(){const box=$('suggestionSummary'),chip=$('planSummaryChip');if(!suggestion||suggestion.key!==planKey()){box.hidden=true;chip.hidden=true;return;}box.hidden=false;chip.hidden=false;const p=suggestion;chip.textContent=config.meat==='minced'?t('Coldest point at removal: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)}):t('Suggested: rest at {time} · peak core {temp} °C',{time:timeText(p.removed),temp:fmt(p.predicted.peak,1)});box.innerHTML=`<strong>${t(p.reached?'YOUR MODEL-BASED PLAN':'TARGET NOT REACHED IN 45 MIN')}</strong><div>${t('Preheat contact area to {temp} °C',{temp:p.preheat})} · ${t('add at {time}',{time:timeText(p.placed)})}</div><div>${t('Flip every minute · rest from {time}',{time:timeText(p.removed)})}</div><div>${t('Rest for {time}',{time:timeText(p.restSeconds)})}</div><p>${t('Predicted peak core: {temp} °C',{temp:fmt(p.predicted.peak,1)})}<br>${t('Core when removed: {temp} °C',{temp:fmt(p.predicted.atRemoval,1)})}<br>${t('Coldest point when removed: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)})}</p><small>${t(config.meat==='minced'?'This targets 75 °C at the simulated coldest point before removal. Verify real food with a thermometer.':'This targets the simulated center, not proven safe cooking. Use a real thermometer and the guidance below.')}</small>`;}
 function requestCompute(){clearTimeout(computeTimer);running=false;syncPlay();computeTimer=setTimeout(compute,120);}
-function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated','diameter','thickness','shrinkProgress'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
+function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated','diameter','thickness','shrinkProgress','roundness'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
 function syncPlay(){$('play').innerHTML=icon(running?'pause':'play')+(running?'Pause':current>=duration?'Play again':current>0?'Continue':'Start experiment');}
 function seek(t){clearMotion();current=clamp(t,0,duration);running=false;syncPlay();render();}
 function scheduleNow(type,value){if(!result||pending)return;const phase=frame.s.phase;if(type==='add'&&phase!=='ready'||['flip','rest'].includes(type)&&phase!=='cooking'){toast(type==='add'?'The ingredient is already on the pan.':'Add the ingredient to the pan first.');return;}const t=Math.round(current);if(type==='power')events=events.filter(e=>!(e.type==='power'&&e.time===t));const event={id:eventID++,time:t,type,value};events.push(event);manualAnimation=event.id;$('scenarioSelect').value='custom';events.sort((a,b)=>a.time-b.time||a.id-b.id);renderEvents();compute();toast(eventDescription({type,value})+' at '+timeText(t)+' was added to the plan.');}
 function render(){
  if(!result)return;frame=snapshotAt(current);drawField=frame.T;const s=frame.s;
+ $('scene').setAttribute('aria-label',(s.roundness>0?'Rounded patty':'Meat')+' · diameter '+fmt(s.diameter,1)+' cm · thickness '+fmt(s.thickness,1)+' mm · pan and temperature cross-section');
  for(const [id,key]of[['panTemp','pan'],['faceATemp','faceA'],['coreTemp','core'],['faceBTemp','faceB']])$(id).innerHTML=fmt(s[key])+'<span>°C</span>';
  if($('panRange')){$('panRange').textContent=Number.isFinite(s.panMin)?fmt(s.panMin)+'–'+fmt(s.panMax)+' °C':'';$('panRange').title=t('Local pan range')+' · '+t('Rim')+': '+fmt(s.panRim??s.pan)+' °C';$('panTemp').title=t('Capacity-weighted mean pan temperature');}
  $('massLabel').textContent='approx. '+fmt(s.mass)+' g';$('clock').textContent=timeText(current);$('scrub').value=current;rangeFill($('scrub'));
@@ -1156,7 +1211,7 @@ function render(){
  $('suggestPlan').disabled=pending;renderSuggestion();drawScene();drawHistory();drawProfile();if(SteakI18n.locale!=='en')SteakI18n.localize();
 }
 function canvasSetup(id){const canvas=$(id),rect=canvas.getBoundingClientRect(),w=rect.width,h=rect.height,dpr=Math.min(window.devicePixelRatio||1,2);if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);return{ctx,w,h,canvas};}
-function sample(r,z,T=drawField){r=clamp(r,0,1)*mesh.nr;z=clamp(z,0,1)*mesh.nz;const i=Math.min(Math.floor(r),mesh.nr-1),j=Math.min(Math.floor(z),mesh.nz-1),x=r-i,y=z-j,n=j*(mesh.nr+1)+i,a=T[n],b=T[n+1],c=T[n+mesh.nr+2],d=T[n+mesh.nr+1];return y<=x?a*(1-x)+b*(x-y)+c*y:a*(1-y)+c*x+d*(y-x);}
+function sample(r,z,T=drawField){return SteakDisplay.sampleDeformedField(mesh,T,r,z,frame.s.roundness??0,SteakPhysics.shapeRadius);}
 function heatRGB(value){return SteakDisplay.heatRGB(value,colorMode);}
 function updateColorScale(){
  const stops=SteakDisplay.legendStops(colorMode);$('scaleGradient').style.background='linear-gradient(var(--scale-direction,90deg),'+stops.map(s=>'rgb('+s.color.join(',')+') '+100*s.position+'%').join(',')+')';

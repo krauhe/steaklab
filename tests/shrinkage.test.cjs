@@ -11,7 +11,7 @@ test('Geometry change preserves material heat, water, crust, pan state and oil c
  e.doses[0][1]=.8;
  const energy=e.energy(),water=Array.from(e.water),T=Array.from(e.T),caps=Array.from(e.panMesh.capacities),PT=Array.from(e.panT),mass=Array.from(e.mesh.mass),g=Array.from(e.edgeG),area=e.mesh.area;
  assert.equal(e.updateGeometry(1),true);near(e.energy(),energy);assert.deepEqual(Array.from(e.water),water);assert.deepEqual(Array.from(e.T),T);assert.deepEqual(Array.from(e.mesh.mass),mass);assert.deepEqual(Array.from(e.panMesh.capacities),caps);assert.deepEqual(Array.from(e.panT),PT);near(e.doses[0][1],.8);
- near(e.observe().diameter,11.2);near(e.observe().thickness,32.5);near(e.mesh.area,area*.64);near(sum(e.panMesh.contactArea),e.mesh.area);near(e.panMesh.contact.reduce((s,x)=>s+x[2],0),e.mesh.area);assert.notDeepEqual(Array.from(e.edgeG),g);
+ near(e.observe().diameter,11.2);near(e.observe().thickness,32.5);near(e.mesh.area,area*.64*.49);near(sum(e.panMesh.contactArea),e.mesh.area);near(e.panMesh.contact.reduce((s,x)=>s+x[2],0),e.mesh.area);assert.notDeepEqual(Array.from(e.edgeG),g);
 });
 
 test('Minced geometry evolves while closed-system total heat remains conserved',()=>{

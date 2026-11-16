@@ -39,7 +39,7 @@ function* suggestSteps(config,target){
  function forecast(){const copy=e.clone();copy.action('rest');copy.action('power',0);let peak=copy.observe().core;for(let t=0;t<restSeconds;t+=5){copy.step(Math.min(5,restSeconds-t));peak=Math.max(peak,copy.observe().core);}return{peak,afterRest:copy.observe().core,atRemoval:e.observe().core,minAtRemoval:e.observe().min};}
  const lastRemoval=2700-restSeconds;
  while(e.time<lastRemoval-1e-8){
-  if(!reduced&&e.time>=placed+60-1e-8){record('power',c.meat==='beef'||c.meat==='pork'?3:2);reduced=true;}
+  if(!reduced&&e.time>=placed+60-1e-8){if(!minced)record('power',c.meat==='beef'||c.meat==='pork'?3:2);reduced=true;}
   if(e.time>=flipAt-1e-8){record('flip');flipAt+=60;}
   const s=e.observe();
   // Minced-patty suggestions require the current whole modeled field to reach
