@@ -14,6 +14,8 @@ See [pan model details](PAN_MODEL.txt) for assumptions and conservation equation
 
 This educational model is not calibrated cooking guidance. Consult the food-safety guidance linked in the app.
 
+Minced beef patties use a fixed 75 °C goal at the simulated coldest point. Suggestions require this before removal, without relying on carryover heat. Edited plans can fall short; the interface reports this. Real food still requires thermometer verification.
+
 ## Development
 
 Node.js is needed only for development:

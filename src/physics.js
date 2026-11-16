@@ -10,6 +10,9 @@
 const PI=Math.PI, SIGMA=5.670374419e-8, LATENT=2.26e6;
 const MATERIALS={
  beef:{label:'Beef',k:.45,rho:1050,cp:3500,water:.65},
+ // Generic minced-beef patty: beef constants reused illustratively; grinding,
+ // fat distribution and patty structure have no separately validated model.
+ minced:{label:'Minced beef patty',k:.45,rho:1050,cp:3500,water:.65},
  pork:{label:'Pork',k:.46,rho:1040,cp:3500,water:.65},
  chicken:{label:'Chicken',k:.48,rho:1050,cp:3550,water:.7},
  fish:{label:'Fish',k:.5,rho:1040,cp:3600,water:.72}

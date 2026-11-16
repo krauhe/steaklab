@@ -118,13 +118,13 @@ function draw(o){
   const cos=Math.cos(theta),sin=Math.sin(theta),lift=Math.max(0,b-H/2)*Math.abs(sin)+8*Math.sin(Math.PI*p);
   physicalPoint=(x,y,z)=>{const yy=y*cos-(z-H/2)*sin,zz=y*sin+(z-H/2)*cos+H/2+base+lift;return{screen:project(x,yy,zz),depth:yy*ce+zz*se};};
   const faces=[],addFace=(pts,rgb,shade=1)=>{const v=pts.map(v=>physicalPoint(...v));faces.push({points:v.map(v=>v.screen),depth:v.reduce((sum,v)=>sum+v.depth,0)/v.length,color:'rgb('+rgb.map(v=>Math.round(v*shade)).join(',')+')'});};
-  for(let i=0;i<48;i++){const u=i/48*Math.PI*2,v=(i+1)/48*Math.PI*2;for(let j=0;j<8;j++){const z0=j/8*H,z1=(j+1)/8*H,temp=sample(1,(j+.5)/8),f=Math.max(0,Math.min(1,(temp-35)/65)),raw=c.meat==='beef'?[148,65,60]:[200,146,125],rgb=mode==='heat'?heatRGB(temp):raw.map((v,k)=>v+([147,110,77][k]-v)*f);addFace([[a*Math.cos(u),b*Math.sin(u),z0],[a*Math.cos(v),b*Math.sin(v),z0],[a*Math.cos(v),b*Math.sin(v),z1],[a*Math.cos(u),b*Math.sin(u),z1]],rgb,.8);}
+  for(let i=0;i<48;i++){const u=i/48*Math.PI*2,v=(i+1)/48*Math.PI*2;for(let j=0;j<8;j++){const z0=j/8*H,z1=(j+1)/8*H,temp=sample(1,(j+.5)/8),f=Math.max(0,Math.min(1,(temp-35)/65)),raw=['beef','minced'].includes(c.meat)?[148,65,60]:[200,146,125],rgb=mode==='heat'?heatRGB(temp):raw.map((v,k)=>v+([147,110,77][k]-v)*f);addFace([[a*Math.cos(u),b*Math.sin(u),z0],[a*Math.cos(v),b*Math.sin(v),z0],[a*Math.cos(v),b*Math.sin(v),z1],[a*Math.cos(u),b*Math.sin(u),z1]],rgb,.8);}
    for(const side of [0,1])for(let j=0;j<10;j++){const r0=j/10,r1=(j+1)/10,r=(r0+r1)/2,ang=(u+v)/2,rgb=mode==='heat'?heatRGB(sample(r,side)):texture(r,(Math.cos(ang)*r+1)*70,(Math.sin(ang)*r+1)*55,side);addFace([[a*r0*Math.cos(u),b*r0*Math.sin(u),side*H],[a*r1*Math.cos(u),b*r1*Math.sin(u),side*H],[a*r1*Math.cos(v),b*r1*Math.sin(v),side*H],[a*r0*Math.cos(v),b*r0*Math.sin(v),side*H]],rgb,.94);}
   }
   faces.sort((a,b)=>a.depth-b.depth);for(const f of faces)polygon(f.points,f.color,f.color);
  }else{ for(let j=0;j<16;j++)for(let i=0;i<70;i++){
   const p=i/70*Math.PI,q=(i+1)/70*Math.PI,z0=base+j/16*H,z1=base+(j+1)/16*H,z=s.bottomSide===0?(j+.5)/16:1-(j+.5)/16;
-  let rgb;if(mode==='heat')rgb=heatRGB(sample(1,z));else{const raw=c.meat==='beef'?[148,65,60]:c.meat==='pork'?[190,121,110]:[214,171,140],cooked=[147,110,77],f=Math.max(0,Math.min(1,(sample(1,z)-35)/65));rgb=raw.map((v,k)=>v+(cooked[k]-v)*f);}
+  let rgb;if(mode==='heat')rgb=heatRGB(sample(1,z));else{const raw=['beef','minced'].includes(c.meat)?[148,65,60]:c.meat==='pork'?[190,121,110]:[214,171,140],cooked=[147,110,77],f=Math.max(0,Math.min(1,(sample(1,z)-35)/65));rgb=raw.map((v,k)=>v+(cooked[k]-v)*f);}
   const shade=.65+.25*Math.sin(p+.35)+.04*Math.sin(i*4+j*7);polygon([project(a*Math.cos(p),b*Math.sin(p),z0),project(a*Math.cos(q),b*Math.sin(q),z0),project(a*Math.cos(q),b*Math.sin(q),z1),project(a*Math.cos(p),b*Math.sin(p),z1)],`rgb(${rgb.map(v=>Math.round(v*shade)).join(',')})`);
  }
  rasterEllipse(ctx,top[0],top[1],a*scale,b*scale*se,topSide,mode==='heat');
