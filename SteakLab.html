@@ -982,7 +982,7 @@ function draw(o){
  // Thin leaders identify the meat, its thickness and the actual pan floor.
  const leadX=cx+a*scale+15,tip=project(a,0,base+H/2);
  ctx.strokeStyle='#d8e8b58c';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(...tip);ctx.lineTo(leadX,tip[1]);ctx.moveTo(leadX,top[1]);ctx.lineTo(leadX,bottom[1]);for(const y of [top[1],bottom[1]]){ctx.moveTo(leadX-3,y);ctx.lineTo(leadX+3,y);}ctx.stroke();
- label(ctx,fmt(H)+' mm',leadX+7,tip[1]+3,'#e0edca',10);
+ label(ctx,fmt(H,1)+' mm',leadX+7,tip[1]+3,'#e0edca',10);
  label(ctx,t('Heat input')+' · '+fmt(s.burnerWatts??s.power*150)+' W',cx,small?241:compact?h-10:h-68,'#d8e5c9',11,'center');
  label(ctx,s.phase==='ready'?'INGREDIENT PREVIEW · WAITING ABOVE THE PAN':resting?'RESTING ON A VIRTUAL RACK':'PAN BASE · 28 cm',cx,small?257:compact?h+20:h-51,'#90a082',small?8:9,'center');
  if(!compact)label(ctx,'28° VIEW · PROPORTIONS TO SCALE',small?16:24,small?53:55,'#788b6d',8);
@@ -991,6 +991,11 @@ function draw(o){
  // Front elevation: x and z use one scale. Never exaggerate the height.
  const desiredSW=small?w*.66:w*.28,baseSW=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/envelopeH):desiredSW,sw=baseSW*D/c.diameter,sx=(small?w*.48:w*(compact?.79:.78))-sw/2,sh=baseSW*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
  if(s.phase==='ready')label(ctx,t('Meat preview'),sx,sy-25,'#a5b09f',11);
+ // Keep the raw outline at the same fixed physical scale so contraction can
+ // be compared in one frame, without exaggerating either dimension.
+ const changed=c.meat==='minced'&&(s.shrinkProgress??0)>.005;
+ if(changed){const rawH=baseSW*c.thickness/(c.diameter*10),rawX=sx+(sw-baseSW)/2,rawY=sy+(sh-rawH)/2;ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle='#d9e5c3a8';ctx.lineWidth=1.1;ctx.strokeRect(rawX,rawY,baseSW,rawH);ctx.restore();label(ctx,'Raw outline',rawX,Math.min(rawY,sy)-24,'#aebc9e',11);}
+
  if(!compact)label(ctx,compact?'CENTER SECTION':'CENTER SECTION · TRUE PROPORTIONS',sx,sy-(compact?25:43),'#bdcbae',small?8:9);
  if(!compact)label(ctx,'Same scale for diameter and thickness',sx,sy-27,'#788b6d',8);
  const surface=sectionCanvas;surface.width=240;surface.height=Math.max(12,Math.ceil(sh*2));const oc=surface.getContext('2d'),im=oc.createImageData(surface.width,surface.height);
@@ -1004,7 +1009,8 @@ function draw(o){
  const centerY=sy+sh/2;ctx.beginPath();ctx.arc(sx+sw/2,centerY,2.7,0,Math.PI*2);ctx.fillStyle='#effadf';ctx.fill();ctx.beginPath();ctx.moveTo(sx+sw/2+5,centerY);ctx.lineTo(sx+sw+6,centerY);ctx.strokeStyle='#e0efb9a0';ctx.stroke();label(ctx,fmt(s.core)+'°',sx+sw+9,centerY+3,'#e1f3b5',10);
  // Dimension lines provide an unambiguous check against the geometry controls.
  const dy=sy+sh+(compact?20:31);ctx.strokeStyle='#839578';ctx.beginPath();ctx.moveTo(sx,dy);ctx.lineTo(sx+sw,dy);for(const x of [sx,sx+sw]){ctx.moveTo(x,dy-3);ctx.lineTo(x,dy+3);}ctx.moveTo(sx-11,sy);ctx.lineTo(sx-11,sy+sh);for(const y of [sy,sy+sh]){ctx.moveTo(sx-14,y);ctx.lineTo(sx-8,y);}ctx.stroke();
- label(ctx,fmt(D,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
+ label(ctx,fmt(D,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H,1)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
+ if(changed)label(ctx,'Diameter −'+fmt((1-D/c.diameter)*100)+'% · thickness +'+fmt((H/c.thickness-1)*100)+'%',sx+sw/2,dy+(compact?27:31),'#dcf589',11,'center');
  if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx,sy+sh+3,sw,2);}
 }
 globalThis.SteakScene={draw};
