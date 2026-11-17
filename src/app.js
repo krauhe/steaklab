@@ -11,16 +11,18 @@ const FOOD_URL='https://www.foodsafety.gov/food-safety-charts/safe-minimum-inter
 const DK_URL='https://www.foedevarestyrelsen.dk/kost-og-foedevarer/alt-om-mad/god-koekkenhygiejne/fem-raad-til-god-koekkenhygiejne/varm-mad-ordentligt-op';
 const t=(key,values)=>SteakI18n.t(key,values);
 const HELP=new Proxy({}, {get:(_,key)=>SteakI18n.help[key]});
-let config={...SteakPhysics.DEFAULTS},duration=780,target=56,events=[],eventID=1,result=null,reference=null,current=0,running=false,view='heat',worker=null,generation=0,computeTimer=null,pending=false,lastFrame=0,lastPaint=0,toastTimer=null;
-let frame=null,drawField=null,mesh=null,suggestion=null;
+const PRESET_DURATION=15*60;
+const durationMinutes=seconds=>Math.floor(seconds/60);
+let config={...SteakPhysics.DEFAULTS},duration=PRESET_DURATION,target=56,events=[],eventID=1,result=null,reference=null,current=0,running=false,view='heat',worker=null,generation=0,computeTimer=null,pending=false,lastFrame=0,lastPaint=0,toastTimer=null;
+let frame=null,drawField=null,mesh=null;
 let colorMode='focus',actionMotion=null,motionQueue=[],manualAnimation=null,primePlayback=false;
-let timelineRows={},timelineWidth=0,clearUndo=null,editorAnchor=null,editorApplyTimer=null;
+let timelineRows={},timelineWidth=0,editorAnchor=null,editorApplyTimer=null;
 const ACTION_ROW_HEIGHT=46;
 icons.steak='M4 8c3-5 13-5 16 1s-1 11-7 11S1 14 4 8Zm3 1 2 6m3-8 2 9m3-6 1 4';
+icons.eat='M5 3v6m3-6v6M2 3v6c0 3 6 3 6 0M5 12v9M17 3c-4 4-4 9 0 9h2M19 3v18';
 icons.spark='m12 2 2.8 7.2L22 12l-7.2 2.8L12 22l-2.8-7.2L2 12l7.2-2.8Z';
 const DONENESS={minced:[[75,'Cooked through']],beef:[[52,'Rare'],[56,'Medium-rare'],[63,'Medium'],[71,'Well-done']],pork:[[63,'Juicy / medium'],[71,'Well-done']],chicken:[[75,'Cooked through'],[80,'Firm finish']],fish:[[63,'Cooked through'],[68,'Firm finish']]};
-function planKey(){return JSON.stringify({config,target,events,duration});}
-const eventNames={power:'Stove',oil:'Oil',add:'Add to pan',flip:'Flip',rest:'Rest'},eventIcons={power:'heat',oil:'drop',add:'steak',flip:'flip',rest:'rest'};
+const eventNames={power:'Stove',oil:'Oil',add:'Add to pan',flip:'Flip',rest:'Rest',eat:'Eat'},eventIcons={power:'heat',oil:'drop',add:'steak',flip:'flip',rest:'rest',eat:'eat'};
 function showInfo(title,body,isHTML=false){$('infoTitle').textContent=t(title);$('infoBody').innerHTML=isHTML?body:`<p>${body}</p>`;if(SteakI18n.locale!=='en')SteakI18n.localize();if(!$('infoDialog').open)$('infoDialog').showModal();}
 function modelInfo(){const rows=Object.values(SteakPhysics.MATERIALS).map(m=>`<tr><td>${t(m.label)}</td><td>${fmt(m.k,2)}</td><td>${m.rho}</td><td>${m.cp}</td></tr>`).join('');showInfo(t('Model assumptions and methods'),SteakI18n.model.replace('{materialRows}',rows)+SteakI18n.sources,true);}
 function toast(message){$('toast').textContent=t(message);$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3600);}
@@ -34,7 +36,7 @@ const fields=[
 ];
 function fieldValue(f){return f.id==='wetness'?`${fmt(config[f.id]*100)} %`:f.id==='aspect'?`${fmt(config[f.id],2)} · ${fmt(config.diameter*config.aspect,1)} cm`:fmt(config[f.id],f.step<1?f.id==='contact'?2:f.id==='diameter'?1:0:0)+' '+f.unit;}
 function makeFields(){for(const [parent,group]of[[$('geometryFields'),fields.slice(0,4)],[$('physicalFields'),fields.slice(4)]])parent.innerHTML=group.map(f=>`<div class="field"><div class="field-label"><label for="${f.id}">${f.name} <button class="info" data-help="${f.id}" aria-label="About: ${f.name}">i</button></label><output id="${f.id}Value" for="${f.id}">${fieldValue(f)}</output></div><input id="${f.id}" type="range" min="${f.min}" max="${f.max}" step="${f.step}" value="${config[f.id]}"><div class="range-labels"><span>${f.ends[0]}</span><span>${f.ends[1]}</span></div></div>`).join('');}
-function syncInputs(){for(const f of fields){$(f.id).value=config[f.id];$(f.id+'Value').textContent=fieldValue(f);rangeFill($(f.id));}$('panType').value=config.pan;$('duration').value=(duration/60).toFixed(2);$('target').value=target;rangeFill($('target'));document.querySelectorAll('[data-meat]').forEach(b=>{b.classList.toggle('selected',b.dataset.meat===config.meat);b.setAttribute('aria-pressed',b.dataset.meat===config.meat);});updateTarget();}
+function syncInputs(){for(const f of fields){$(f.id).value=config[f.id];$(f.id+'Value').textContent=fieldValue(f);rangeFill($(f.id));}$('panType').value=config.pan;$('duration').value=durationMinutes(duration);$('target').value=target;rangeFill($('target'));document.querySelectorAll('[data-meat]').forEach(b=>{b.classList.toggle('selected',b.dataset.meat===config.meat);b.setAttribute('aria-pressed',b.dataset.meat===config.meat);});updateTarget();}
 function updateTarget(){
  const minced=config.meat==='minced';if(minced)target=75;$('target').disabled=minced;$('donenessSelect').disabled=minced;$('target').value=target;rangeFill($('target'));$('targetLabel').textContent=minced?'Minimum throughout':'Your core target';
  $('donenessSelect').innerHTML=DONENESS[config.meat].map(([value,label])=>`<option value="${value}" ${target===value?'selected':''}>${t(label)}</option>`).join('')+(minced?'':`<option value="custom" ${!DONENESS[config.meat].some(([value])=>value===target)?'selected':''}>${t('Custom target')}</option>`);
@@ -49,10 +51,11 @@ function preset(name,initial=false){
  const add=(time,type,value)=>({id:eventID++,time,type,value});
  if(name==='cold')events=[add(0,'oil',10),add(0,'add'),add(0,'power',6),add(180,'flip'),add(240,'power',3),add(300,'flip'),add(420,'flip'),add(540,'flip'),add(600,'rest'),add(600,'power',0)];
  else{events=[add(0,'power',12),add(100,'oil',10),add(105,'add'),add(110,'power',5),add(200,'power',3)];const flips=name==='frequent'?Array.from({length:14},(_,i)=>135+i*30):[195,315,435];events.push(...flips.map(t=>add(t,'flip')),add(555,'rest'),add(555,'power',0));}
- duration=780;events.sort((a,b)=>a.time-b.time||a.id-b.id);current=initial?0:clamp(current,0,duration);running=false;syncPlay();$('duration').value=13;document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===name));renderEvents();if(!initial)compute();
+ duration=PRESET_DURATION;events.push(add(duration,'eat'));events.sort((a,b)=>a.time-b.time||a.id-b.id);current=initial?0:clamp(current,0,duration);running=false;syncPlay();$('duration').value=durationMinutes(duration);document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('selected',b.dataset.preset===name));renderEvents();if(!initial)compute();
 }
 const restNames={air:'Open air',foil:'Foil tent',pan:'On pan · heat off'};
-function eventDescription(e){return eventNames[e.type]+(e.type==='rest'?' · '+(restNames[e.value]||restNames.air):'')+(e.type==='power'?' '+Math.round(stoveWatts(e.value))+' W':e.type==='oil'?' '+e.value+' g':'');}
+function eventDescription(e){return eventNames[e.type]+(e.type==='rest'?' · '+(restNames[e.value]||restNames.air):'')+(e.type==='power'?' '+Math.round(stoveWatts(e.value))+' W · '+stoveStepLabel(e.value):e.type==='oil'?' '+e.value+' g':'');}
+function stoveStepLabel(value){return Number((value*stoveProfile.maxStep/12).toFixed(1))+'/'+stoveProfile.maxStep;}
 function markerLabel(e){return e.type==='power'?Math.round(stoveWatts(e.value))+' W':e.type==='oil'?'Oil · '+e.value+' g':e.type==='add'?'Add':eventNames[e.type];}
 function freeActionRow(id,time,preferred=0){return SteakDisplay.freeActionRow(events,timelineRows,id,time,preferred,$('eventTrack').clientWidth||420,duration);}
 function setDragGuide(time,row){const guide=$('timelineDragGuide');if(!guide)return;guide.hidden=false;guide.style.left=100*time/duration+'%';guide.querySelector('span').textContent=timeText(time);$('eventTrack').style.setProperty('--drop-row',row);}
@@ -64,17 +67,28 @@ function layoutEvents(){
  timelineWidth=width;for(const e of events)if(timelineRows[e.id]===undefined)timelineRows[e.id]=freeActionRow(e.id,e.time);
  const count=Math.max(3,...events.map(e=>timelineRows[e.id]+1));track.style.setProperty('--track-height',count*ACTION_ROW_HEIGHT+'px');
  const tickStep=duration/Math.max(1,Math.floor(width/55)),niceStep=[15,30,60,120,300,600].find(v=>v>=tickStep)||900,ticks=[];
- for(let time=0;time<=duration;time+=niceStep)ticks.push(time);if(ticks.at(-1)!==duration){if((duration-ticks.at(-1))*width/duration<55)ticks.pop();ticks.push(duration);}
- $('timelineAxis').innerHTML=ticks.map(time=>`<button type="button" data-time="${time}" style="left:${100*time/duration}%" aria-label="${t('View at')} ${timeText(time)}">${timeText(time)}</button>`).join('');
+ for(let time=0;time<=duration;time+=niceStep)ticks.push(time);if(ticks.at(-1)!==duration){if((duration-ticks.at(-1))*width/duration<55||ticks.at(-1)===durationMinutes(duration)*60)ticks.pop();ticks.push(duration);}
+ $('timelineAxis').innerHTML=ticks.map(time=>`<button type="button" data-time="${time}" style="left:${100*time/duration}%" aria-label="${t('View at')} ${timeText(time)}">${time===duration?durationMinutes(time)+' min':timeText(time)}</button>`).join('');
  track.style.setProperty('--tick-width',niceStep/duration*width+'px');
  track.innerHTML='<div id="timelineCursor" class="timeline-cursor" aria-hidden="true" style="left:'+100*current/duration+'%"></div><div id="timelineDragGuide" class="timeline-drag-guide" hidden><span></span></div>'+(events.length?'':'<p class="empty-plan">'+t('Drag a tool here to start your plan.')+'</p>')+events.map(e=>{
   const disabled=e.enabled===false,name=t('Edit')+' '+eventDescription(e)+' '+t('at')+' '+timeText(e.time)+(disabled?' · '+t('Disabled'):'');
-  return `<button class="event-marker event-${e.type} ${disabled?'muted-event':''}" data-event-id="${e.id}" data-event-ids="${e.id}" data-seek="${e.time}" style="left:${100*e.time/duration}%;top:${timelineRows[e.id]*ACTION_ROW_HEIGHT+3}px" title="${name}" aria-label="${name}" aria-haspopup="dialog"><span class="event-dot">${icon(eventIcons[e.type])}</span><span class="marker-label">${t(e.type==='oil'?e.value+' g':markerLabel(e))}</span></button>`;
- }).join('');$('clearPlan').disabled=!events.length;const palette=document.querySelector('.plan-workspace .toolbox'),workspace=document.querySelector('.plan-workspace');const toolOffset=palette.querySelector('[data-tool]').getBoundingClientRect().top-palette.getBoundingClientRect().top;palette.style.marginTop=Math.max(0,track.getBoundingClientRect().top+3-workspace.getBoundingClientRect().top-toolOffset)+'px';
+  return `<button class="event-marker event-${e.type} ${disabled?'muted-event':''}" data-event-id="${e.id}" data-event-ids="${e.id}" data-seek="${e.time}" style="--event-x:${100*e.time/duration}%;top:${timelineRows[e.id]*ACTION_ROW_HEIGHT+3}px" title="${name}" aria-label="${name}" aria-haspopup="dialog"><span class="event-dot">${icon(eventIcons[e.type])}</span><span class="marker-label">${t(e.type==='oil'?e.value+' g':markerLabel(e))}</span>${e.type==='power'?`<span class="marker-step">${stoveStepLabel(e.value)}</span>`:''}</button>`;
+ }).join('');$('clearPlan').disabled=!events.length;const palette=document.querySelector('.plan-workspace .toolbox'),workspace=document.querySelector('.plan-workspace');const toolOffset=palette.querySelector('[data-tool]').getBoundingClientRect().top-palette.getBoundingClientRect().top;palette.style.marginTop=Math.max(0,Math.min(track.getBoundingClientRect().top+3-workspace.getBoundingClientRect().top-toolOffset,workspace.clientHeight-palette.offsetHeight))+'px';
+}
+const planHistory=[];let planHistoryIndex=-1,restoringPlan=false;
+function rememberPlan(){
+ const state=JSON.stringify({events,duration,rows:timelineRows,preset:$('scenarioSelect').value});
+ if(!restoringPlan&&state!==planHistory[planHistoryIndex]){planHistory.splice(planHistoryIndex+1);planHistory.push(state);if(planHistory.length>100)planHistory.shift();planHistoryIndex=planHistory.length-1;}
+ $('undoPlan').disabled=planHistoryIndex<=0;$('redoPlan').disabled=planHistoryIndex>=planHistory.length-1;
+}
+function restorePlan(delta){
+ const index=planHistoryIndex+delta;if(index<0||index>=planHistory.length)return;
+ closeActionEditor();clearMotion();planHistoryIndex=index;const state=JSON.parse(planHistory[index]);
+ events=state.events;duration=state.duration;timelineRows=state.rows;$('scenarioSelect').value=state.preset;$('duration').value=durationMinutes(duration);
+ current=Math.min(current,duration);timelineWidth=0;restoringPlan=true;renderEvents();restoringPlan=false;compute();
 }
 function renderEvents(){
- $('eventRows').innerHTML=events.map(e=>`<div class="event-row ${e.enabled===false?'muted-event':''}" data-id="${e.id}"><input class="event-enabled" type="checkbox" ${e.enabled===false?'':'checked'} aria-label="Include ${eventDescription(e)} at ${timeText(e.time)}"><span class="event-time-readout">${timeText(e.time)}</span><button type="button" class="event-kind event-${e.type}" data-edit-event="${e.id}">${icon(eventIcons[e.type])}<span>${t(eventDescription(e))}</span></button><button class="remove-event" aria-label="Remove action at ${timeText(e.time)}">×</button></div>`).join('');
- $('scrub').max=duration;$('endClock').textContent='/ '+timeText(duration);layoutEvents();
+ $('scrub').max=duration;$('endClock').textContent='/ '+durationMinutes(duration)+' min';layoutEvents();rememberPlan();
  if(SteakI18n.locale!=='en')SteakI18n.localize();
 }
 let editedEvent=null,dragEvent=null,suppressTimelineClickUntil=0,lastDraggedId=null;
@@ -82,12 +96,12 @@ function eventEditorType(resetValue=false){
  const type=$('editActionType').value,numeric=['power','oil'].includes(type);
  $('editAmountField').hidden=!numeric;$('editRestField').hidden=type!=='rest';$('editAmountLabel').textContent=t(type==='power'?'Power':'Amount');$('editActionAmount').setAttribute('aria-label',t(type==='power'?'Heat input (watts)':'Oil (grams)'));$('editActionAmount').max=type==='power'?config.maxHeatWatts:30;$('editActionAmount').step=1;
  if(resetValue)$('editActionAmount').value=type==='power'?Math.round(stoveWatts(6)):10;
- const hints={power:'Set the stove power from this moment onward. It stays there until the next stove action.',oil:'Add this amount of oil at the chosen time.',add:'Place the ingredient on the pan, with side A facing down.',flip:'Turn the meat over once. Its temperature and crust stay with each physical side.',rest:'Choose how the meat rests. Open air and foil remove it from the pan; staying on the pan switches the stove off while the hot metal keeps transferring heat.'};
+ const hints={eat:'Mark when you plan to eat. The voice guide announces this serving point. Use a real thermometer to check the meat. Use Rest and Heat actions for those changes.',power:'Set the stove power from this moment onward. It stays there until the next stove action.',oil:'Add this amount of oil at the chosen time.',add:'Place the ingredient on the pan, with side A facing down.',flip:'Turn the meat over once. Its temperature and crust stay with each physical side.',rest:'Choose how the meat rests. Open air and foil remove it from the pan; staying on the pan switches the stove off while the hot metal keeps transferring heat.'};
  $('editActionHint').textContent=t(hints[type]);$('editActionSymbol').innerHTML=icon(eventIcons[type]);$('editActionSymbol').className='event-editor-symbol event-'+type;updateEditorAmount();
 }
 function updateEditorAmount(){const input=$('editActionAmount');rangeFill(input);$('editAmountValue').textContent=input.value+($('editActionType').value==='power'?' W · '+fmt(stoveSetting(+input.value)/12*stoveProfile.maxStep,1)+'/'+stoveProfile.maxStep:' g');}
 function openEventEditor(id=null,type='flip',atTime=null){
- closeActionEditor();$('planDialog').close();editedEvent=events.find(e=>e.id===id)||null;if(!editedEvent&&events.length>=80){toast('A plan can contain up to 80 actions.');return;}
+ closeActionEditor();editedEvent=events.find(e=>e.id===id)||null;if(!editedEvent&&events.length>=80){toast('A plan can contain up to 80 actions.');return;}
  const entry=editedEvent||{id:eventID++,time:atTime??Math.round(current),type,enabled:true,value:type==='power'?6:type==='oil'?10:type==='rest'?'air':undefined};if(!editedEvent){events.push(entry);editedEvent=entry;manualAnimation=entry.id;changedEvents();}
  running=false;clearMotion();syncPlay();$('eventDialogTitle').textContent=t(eventNames[entry.type]);$('saveAction').hidden=true;
  $('editActionType').value=entry.type;$('editActionName').textContent=t(eventNames[entry.type]);$('editRestMode').value=restNames[entry.value]?entry.value:'air';$('editActionTime').value=entry.time;$('editActionAmount').max=entry.type==='power'?config.maxHeatWatts:30;$('editActionAmount').step=1;$('editActionAmount').value=Number.isFinite(entry.value)?(entry.type==='power'?Math.round(stoveWatts(entry.value)):entry.value):10;$('editActionEnabled').checked=entry.enabled!==false;$('deleteAction').hidden=!editedEvent;$('actionError').hidden=true;eventEditorType();
@@ -114,15 +128,111 @@ async function compute(){
 }
 async function suggestPlan(){
  if(pending)return;clearMotion();clearTimeout(computeTimer);const id=++generation,signature=JSON.stringify({config,target});pending=true;running=false;syncPlay();$('suggestPlan').disabled=true;$('computeStatus').textContent=t('Testing a cooking plan and its carryover heat …');$('computeStatus').hidden=false;
- const finish=p=>{if(id!==generation||!p)return;if(signature!==JSON.stringify({config,target})){pending=false;$('suggestPlan').disabled=false;$('computeStatus').hidden=true;toast('Settings changed. Request a new suggestion.');return;}events=p.events.map(e=>({...e,id:eventID++}));duration=p.duration;current=clamp(current,0,duration);$('duration').value=(duration/60).toFixed(2);suggestion={...p,key:planKey()};$('scenarioSelect').value='custom';document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('selected'));renderEvents();renderSuggestion();compute();toast(p.reached?'A plan for your cut is ready. Play it, then experiment.':'The target was not reached within 45 minutes. Review the trial plan.');};
+ const finish=p=>{if(id!==generation||!p)return;if(signature!==JSON.stringify({config,target})){pending=false;$('suggestPlan').disabled=false;$('computeStatus').hidden=true;toast('Settings changed. Request a new suggestion.');return;}events=p.events.map(e=>({...e,id:eventID++}));duration=p.duration;events.push({id:eventID++,time:duration,type:'eat'});current=clamp(current,0,duration);$('duration').value=durationMinutes(duration);$('scenarioSelect').value='custom';document.querySelectorAll('[data-preset]').forEach(b=>b.classList.remove('selected'));renderEvents();compute();toast(p.reached?'A plan for your cut is ready. Play it, then experiment.':'The target was not reached within 45 minutes. Review the trial plan.');};
  const fail=err=>{if(id!==generation)return;pending=false;$('computeStatus').hidden=true;$('suggestPlan').disabled=false;toast('Plan calculation stopped: '+err.message);};
  const fallback=()=>SteakRunner.suggestAsync(config,target,()=>id!==generation).then(finish).catch(fail);
  try{if(worker)worker.terminate();const source=$('physics-code').textContent+'\n'+$('runner-code').textContent+'\nonmessage=e=>{try{postMessage({proposal:SteakRunner.suggest(e.data.config,e.data.target)});}catch(error){postMessage({error:error.message});}};';const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));worker=new Worker(url);URL.revokeObjectURL(url);worker.onmessage=e=>{if(id!==generation)return;worker.terminate();worker=null;if(e.data.error)fail(new Error(e.data.error));else finish(e.data.proposal);};worker.onerror=()=>{if(id!==generation)return;worker.terminate();worker=null;fallback();};worker.postMessage({config,target});}catch{fallback();}
 }
-function renderSuggestion(){const box=$('suggestionSummary'),chip=$('planSummaryChip');if(!suggestion||suggestion.key!==planKey()){box.hidden=true;chip.hidden=true;return;}box.hidden=false;chip.hidden=false;const p=suggestion;chip.textContent=config.meat==='minced'?t('Coldest point at removal: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)}):t('Suggested: rest at {time} · peak core {temp} °C',{time:timeText(p.removed),temp:fmt(p.predicted.peak,1)});box.innerHTML=`<strong>${t(p.reached?'YOUR MODEL-BASED PLAN':'TARGET NOT REACHED IN 45 MIN')}</strong><div>${t('Preheat contact area to {temp} °C',{temp:p.preheat})} · ${t('add at {time}',{time:timeText(p.placed)})}</div><div>${t('Flip every minute · rest from {time}',{time:timeText(p.removed)})}</div><div>${t('Rest for {time}',{time:timeText(p.restSeconds)})}</div><p>${t('Predicted peak core: {temp} °C',{temp:fmt(p.predicted.peak,1)})}<br>${t('Core when removed: {temp} °C',{temp:fmt(p.predicted.atRemoval,1)})}<br>${t('Coldest point when removed: {temp} °C',{temp:fmt(p.predicted.minAtRemoval,1)})}</p><small>${t(config.meat==='minced'?'This targets 75 °C at the simulated coldest point before removal. Verify real food with a thermometer.':'This targets the simulated center, not proven safe cooking. Use a real thermometer and the guidance below.')}</small>`;}
 function requestCompute(){clearTimeout(computeTimer);running=false;syncPlay();computeTimer=setTimeout(compute,120);}
 function snapshotAt(t){const list=result.snapshots;let lo=0,hi=list.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(list[mid].s.time<=t)lo=mid;else hi=mid-1;}const a=list[lo],b=list[Math.min(lo+1,list.length-1)],f=b.s.time>a.s.time?clamp((t-a.s.time)/(b.s.time-a.s.time),0,1):0;const s={...a.s};for(const key of ['pan','panContactTemp','burnerWatts','core','min','max','faceA','faceB','brownA','brownB','burnA','burnB','evaporated','diameter','thickness','shrinkProgress','roundness'])s[key]=a.s[key]+(b.s[key]-a.s[key])*f;s.time=t;const T=new Float32Array(a.T.length);for(let i=0;i<T.length;i++)T[i]=a.T[i]+(b.T[i]-a.T[i])*f;s.min=Math.min(...T);s.max=Math.max(...T);if(a.s.panField?.length){s.panField=Float32Array.from(a.s.panField,(value,i)=>value+((b.s.panField?.[i]??value)-value)*f);s.panMin=Math.min(...s.panField);s.panMax=Math.max(...s.panField);s.panRim=s.panField[s.panField.length-1];}return{s,T,dA:a.dA,dB:a.dB};}
-function syncPlay(){$('play').innerHTML=icon(running?'pause':'play')+(running?'Pause':current>=duration?'Play again':current>0?'Continue':'Start experiment');}
+const guideClips=/*__VOICE__*/;
+const hasRecordedGuide=Boolean(guideClips.start);
+const speech=window.speechSynthesis;
+let guideAudio=null,guideAudioQueue=[],guideAudioEpoch=0;
+const voiceGuide=$('voiceGuide');
+let guideUtterance=null,guidedStartTime=0,guidedStartPosition=0;
+voiceGuide.disabled=!hasRecordedGuide&&(!speech||typeof SpeechSynthesisUtterance!=='function');
+$('voiceGuideLabel').title=voiceGuide.disabled?'Speech playback is unavailable in this browser.':'English cooking guidance at any simulation speed. Speech stays at normal speed; rapid actions are queued.';
+
+function guideActive(){return voiceGuide.checked;}
+function stopGuide(){
+ guideAudioEpoch++;guideAudioQueue=[];
+ if(guideAudio){guideAudio.pause();guideAudio.onended=null;guideAudio.onerror=null;guideAudio=null;}
+ if(!guideUtterance)return;
+ guideUtterance=null;
+ speech.cancel();
+}
+function startGuideClock(){
+ guidedStartTime=performance.now();
+ guidedStartPosition=current;
+}
+function heatGuideCue(event){
+ if(event.value===0)return 'off';
+ let previous=0;
+ for(const action of events.filter(e=>e.enabled!==false).slice().sort((a,b)=>a.time-b.time||a.id-b.id)){
+  if(action.id===event.id)break;
+  if(action.type==='power')previous=action.value;
+  if(action.type==='rest'&&action.value==='pan')previous=0;
+ }
+ return event.value>previous?'increase_heat':event.value<previous?'decrease_heat':'change_heat';
+}
+function guideInstruction(event,danish){
+ if(event.type==='power'){
+  if(event.value===0)return danish?'Sluk for blusset.':'Turn off the heat.';
+  const cue=heatGuideCue(event);return cue==='increase_heat'?'Increase the heat.':cue==='decrease_heat'?'Decrease the heat.':'Change the heat.';
+ }
+ if(event.type==='rest'){
+  if(event.value==='pan')return danish?'Sluk for blusset, og lad kødet hvile på panden.':'Turn off the heat and let the meat rest in the pan.';
+  if(event.value==='foil')return danish?'Tag kødet af panden, og lad det hvile under løst folie.':'Take the meat out of the pan and rest it under loose foil.';
+  return danish?'Tag kødet af panden, og lad det hvile.':'Take the meat out of the pan and let it rest.';
+ }
+ const cues={
+  oil:danish?'Tilsæt '+event.value+' gram olie.':'Add '+event.value+' grams of oil.',
+  add:danish?'Læg kødet på panden.':'Put the meat in the pan.',
+  flip:danish?'Vend kødet.':'Flip the meat.',
+  eat:danish?'Tid til at spise.':'Time to eat.'
+ };
+ return cues[event.type];
+}
+function speakGuide(actions,announceStart=false){
+ if(!guideActive()||(!actions.length&&!announceStart))return;
+ if(hasRecordedGuide){
+  const cue=event=>event.type==='power'?heatGuideCue(event):event.type==='rest'?'rest_'+(event.value||'air'):event.type==='eat'?'serve':event.type;
+  guideAudioQueue.push(...(actions.length?actions.map(cue):['start']).filter(id=>guideClips[id]));
+  playNextGuideClip();return;
+ }
+ const voices=speech.getVoices();
+ const danish=SteakI18n.locale.startsWith('da');
+ const lang=danish?'da-DK':'en-GB';
+ const matches=voices.filter(voice=>voice.lang.toLowerCase().startsWith(lang.slice(0,2)));
+ const voice=matches.find(voice=>voice.localService)||matches[0];
+ const useDanish=danish&&(matches.length>0||voices.length===0);
+ const text=actions.length?actions.map(action=>guideInstruction(action,useDanish)).filter(Boolean).join(' '):
+  useDanish?'Stemmeguiden er startet.':'Voice guide is on.';
+ if(!text)return;
+ const utterance=new SpeechSynthesisUtterance(text);
+ utterance.lang=useDanish?'da-DK':'en-GB';
+ if(voice)utterance.voice=voice;
+ guideUtterance=utterance;
+ utterance.onend=()=>{if(guideUtterance===utterance)guideUtterance=null;};
+ utterance.onerror=event=>{
+  if(guideUtterance!==utterance||['canceled','interrupted'].includes(event.error))return;
+  stopGuide();voiceGuide.checked=false;toast('The browser could not play the voice guide.');
+ };
+ speech.speak(utterance);
+}
+function playNextGuideClip(){
+ if(guideAudio||!guideAudioQueue.length)return;
+ const epoch=guideAudioEpoch,audio=new Audio(guideClips[guideAudioQueue.shift()]);guideAudio=audio;
+ const failed=()=>{if(epoch!==guideAudioEpoch)return;stopGuide();voiceGuide.checked=false;toast('The voice guide could not play. Enable it again to retry.');};
+ audio.onended=()=>{if(epoch!==guideAudioEpoch)return;guideAudio=null;playNextGuideClip();};
+ audio.onerror=failed;audio.play().catch(failed);
+}
+voiceGuide.onchange=()=>{
+ if(!voiceGuide.checked){stopGuide();return;}
+ startGuideClock();
+ if(running)speakGuide([],true);
+};
+$('speed').onchange=()=>{
+ startGuideClock();
+};
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden&&running&&guideActive()){
+  running=false;clearMotion();syncPlay();
+ }
+});
+function syncPlay(keepFinalCue=false){if(!running&&!keepFinalCue)stopGuide();$('play').innerHTML=icon(running?'pause':'play')+(running?'Pause':current>=duration?'Play again':current>0?'Continue':'Start experiment');}
+$('restart').onclick=()=>seek(0);
 function seek(t){clearMotion();current=clamp(t,0,duration);running=false;syncPlay();render();}
 function scheduleNow(type,value){if(!result||pending)return;const phase=frame.s.phase;if(type==='add'&&phase!=='ready'||['flip','rest'].includes(type)&&phase!=='cooking'){toast(type==='add'?'The ingredient is already on the pan.':'Add the ingredient to the pan first.');return;}const t=Math.round(current);if(type==='power')events=events.filter(e=>!(e.type==='power'&&e.time===t));const event={id:eventID++,time:t,type,value};events.push(event);manualAnimation=event.id;$('scenarioSelect').value='custom';events.sort((a,b)=>a.time-b.time||a.id-b.id);renderEvents();compute();toast(eventDescription({type,value})+' at '+timeText(t)+' was added to the plan.');}
 function render(){
@@ -136,7 +246,7 @@ function render(){
  document.querySelectorAll('.event-marker').forEach(b=>b.classList.toggle('past',+b.dataset.seek<=current));
  if($('timelineCursor'))$('timelineCursor').style.left=100*current/duration+'%';
  document.querySelectorAll('[data-action]').forEach(b=>b.disabled=pending||(b.dataset.action==='add'?s.phase!=='ready':['flip','rest'].includes(b.dataset.action)?s.phase!=='cooking':false));
- $('suggestPlan').disabled=pending;renderSuggestion();drawScene();drawHistory();drawProfile();if(SteakI18n.locale!=='en')SteakI18n.localize();
+ $('suggestPlan').disabled=pending;drawScene();drawHistory();drawProfile();if(SteakI18n.locale!=='en')SteakI18n.localize();
 }
 function canvasSetup(id){const canvas=$(id),rect=canvas.getBoundingClientRect(),w=rect.width,h=rect.height,dpr=Math.min(window.devicePixelRatio||1,2);if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);return{ctx,w,h,canvas};}
 function sample(r,z,T=drawField){return SteakDisplay.sampleDeformedField(mesh,T,r,z,frame.s.roundness??0,SteakPhysics.shapeRadius);}
@@ -177,29 +287,48 @@ function temperatureGradient(ctx,x0,y0,x1,y1,maxT){
  for(const stop of SteakDisplay.legendStops(colorMode))if(stop.temperature<maxT)gradient.addColorStop(stop.temperature/maxT,'rgb('+stop.color.join(',')+')');
  gradient.addColorStop(1,heatColor(maxT));return gradient;
 }
-function drawHistory(){const{ctx,w,h}=canvasSetup('history');let maximum=target;for(const p of result.snapshots)maximum=Math.max(maximum,p.s.pan,p.s.faceA,p.s.faceB);const ymax=Math.max(100,Math.ceil(maximum/50)*50),{X,Y,l,r}=axes(ctx,w,h,ymax,duration/60);ctx.fillStyle=temperatureGradient(ctx,0,Y(0),0,Y(ymax),ymax);ctx.fillRect(l-6,Y(ymax),5,Y(0)-Y(ymax));ctx.save();ctx.beginPath();ctx.rect(l,20,w-l-r,h-50);ctx.clip();ctx.setLineDash([4,5]);ctx.strokeStyle='#dcf58966';ctx.beginPath();ctx.moveTo(l,Y(target));ctx.lineTo(w-r,Y(target));ctx.stroke();ctx.setLineDash([]);for(const e of events.filter(e=>e.enabled!==false&&['add','flip','rest'].includes(e.type))){ctx.beginPath();ctx.moveTo(X(e.time/60),22);ctx.lineTo(X(e.time/60),h-31);ctx.strokeStyle='#c9d0b21b';ctx.stroke();}
+const targetColor='#f8f0c4',endProfileColor='#d5baff';
+function drawTargetLine(ctx,x1,y1,x2,y2){
+ ctx.save();ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);
+ ctx.setLineDash([7,4]);ctx.lineWidth=2;ctx.strokeStyle=targetColor;ctx.stroke();ctx.restore();
+}
+function drawHistory(){const{ctx,w,h}=canvasSetup('history');let maximum=target;for(const p of result.snapshots)maximum=Math.max(maximum,p.s.pan,p.s.faceA,p.s.faceB);const ymax=Math.max(100,Math.ceil(maximum/50)*50),{X,Y,l,r}=axes(ctx,w,h,ymax,duration/60);ctx.fillStyle=temperatureGradient(ctx,0,Y(0),0,Y(ymax),ymax);ctx.fillRect(l-6,Y(ymax),5,Y(0)-Y(ymax));ctx.save();ctx.beginPath();ctx.rect(l,20,w-l-r,h-50);ctx.clip();drawTargetLine(ctx,l,Y(target),w-r,Y(target));for(const e of events.filter(e=>e.enabled!==false&&['add','flip','rest','eat'].includes(e.type))){ctx.beginPath();ctx.moveTo(X(e.time/60),22);ctx.lineTo(X(e.time/60),h-31);ctx.strokeStyle='#c9d0b21b';ctx.stroke();}
  if(reference){ctx.setLineDash([5,5]);ctx.strokeStyle='#e8e9db70';ctx.lineWidth=1.5;ctx.beginPath();reference.snapshots.forEach((p,i)=>{const x=X(p.time/60),y=Y(p.core);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();ctx.setLineDash([]);}
  for(const key of ['pan','faceA','faceB','core']){ctx.beginPath();result.snapshots.forEach((p,i)=>{const x=X(p.s.time/60),y=Y(p.s[key]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.strokeStyle=palette[key];ctx.lineWidth=key==='core'?2.2:1.4;ctx.stroke();}
- ctx.beginPath();ctx.moveTo(X(current/60),22);ctx.lineTo(X(current/60),h-31);ctx.strokeStyle='#e8efdd88';ctx.lineWidth=1;ctx.stroke();for(const key of ['pan','faceA','faceB','core']){ctx.beginPath();ctx.arc(X(current/60),Y(frame.s[key]),3,0,Math.PI*2);ctx.fillStyle=palette[key];ctx.fill();}ctx.restore();label(ctx,'TARGET '+target+'°',w-r-4,Y(target)-5,'#dcf58999',8,'right');}
+ ctx.beginPath();ctx.moveTo(X(current/60),22);ctx.lineTo(X(current/60),h-31);ctx.strokeStyle='#e8efdd88';ctx.lineWidth=1;ctx.stroke();for(const key of ['pan','faceA','faceB','core']){ctx.beginPath();ctx.arc(X(current/60),Y(frame.s[key]),3,0,Math.PI*2);ctx.fillStyle=palette[key];ctx.fill();}ctx.restore();label(ctx,t('Target')+' '+target+' °C',l+6,Y(target)-7,targetColor,12,'left');}
 function drawProfile(){
  // Material coordinates stay fixed: B at the top, A at the bottom, even after a flip.
  // One temperature range for the complete run prevents rescaling during playback.
  let maximum=Math.max(100,target);for(const p of result.snapshots)maximum=Math.max(maximum,p.s.max);
- const {ctx,w,h}=canvasSetup('profile'),maxT=Math.ceil(maximum/25)*25,l=52,r=17,top=38,bottom=17,H=frame.s.thickness??config.thickness;
- const X=temp=>l+temp/maxT*(w-l-r),Y=depth=>top+depth/H*(h-top-bottom);
+ const {ctx,w,h}=canvasSetup('profile'),maxT=Math.ceil(maximum/25)*25,l=52,r=17,top=38,bottom=17;
+ const servingEvent=events.filter(e=>e.type==='eat'&&e.enabled!==false).sort((a,b)=>a.time-b.time)[0];
+ const endTime=servingEvent?clamp(servingEvent.time,0,duration):duration;
+ const end=snapshotAt(endTime),H=frame.s.thickness??config.thickness,endH=end.s.thickness??config.thickness;
+ const maxDepth=Math.max(H,endH);
+ const X=temp=>l+temp/maxT*(w-l-r),Y=depth=>top+depth/maxDepth*(h-top-bottom);
+ $('profileEnd').textContent=t(servingEvent?'Eat core':'End core')+' '+fmt(end.s.core,1)+' °C · '+timeText(endTime);
+ $('profile').setAttribute('aria-label','Temperature profiles: current and '+(servingEvent?'at serving':'at the end of the simulation')+' at '+timeText(endTime));
  for(let i=0;i<=4;i++){const value=i*maxT/4,x=X(value);ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,h-bottom);ctx.strokeStyle=palette.grid;ctx.lineWidth=.7;ctx.stroke();label(ctx,fmt(value),x,top-11,palette.text,10,'center');}
- for(let i=0;i<=4;i++){const depth=i*H/4,y=Y(depth);ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(w-r,y);ctx.strokeStyle=palette.grid;ctx.stroke();label(ctx,fmt(depth,depth%1?1:0),l-8,y+3,palette.text,9,'right');}
+ for(let i=0;i<=4;i++){const depth=i*maxDepth/4,y=Y(depth);ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(w-r,y);ctx.strokeStyle=palette.grid;ctx.stroke();label(ctx,fmt(depth,depth%1?1:0),l-8,y+3,palette.text,9,'right');}
  label(ctx,'mm',l-8,11,palette.text,9,'right');label(ctx,'°C',w-r,11,palette.text,10,'right');
+ label(ctx,t('Target')+' '+target+' °C',X(target),11,targetColor,12,'center');
  ctx.fillStyle=temperatureGradient(ctx,l,0,w-r,0,maxT);ctx.fillRect(l,top-7,w-l-r,4);
  ctx.save();ctx.beginPath();ctx.rect(l,top,w-l-r,h-top-bottom);ctx.clip();
  ctx.fillStyle='#d9f0920c';ctx.fillRect(l,Y(H*.45),w-l-r,Y(H*.55)-Y(H*.45));
- ctx.beginPath();ctx.setLineDash([3,4]);ctx.moveTo(X(target),top);ctx.lineTo(X(target),h-bottom);ctx.strokeStyle='#d3ee8077';ctx.stroke();ctx.setLineDash([]);
- const points=[];for(let j=0;j<=mesh.nz;j++){const index=mesh.nz-j;points.push([X(drawField[index*(mesh.nr+1)]),Y(j/mesh.nz*H)]);}
- const gradient=ctx.createLinearGradient(l,0,w-r,0);gradient.addColorStop(0,'#dff18900');gradient.addColorStop(1,'#dff18932');ctx.beginPath();ctx.moveTo(l,top);points.forEach(p=>ctx.lineTo(...p));ctx.lineTo(l,h-bottom);ctx.closePath();ctx.fillStyle=gradient;ctx.fill();
- ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.strokeStyle=palette.core;ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(X(frame.s.core),Y(H/2),3,0,Math.PI*2);ctx.fillStyle=palette.core;ctx.fill();ctx.restore();
+ drawTargetLine(ctx,X(target),top,X(target),h-bottom);
+ const profilePoints=(field,thickness)=>Array.from({length:mesh.nz+1},(_,j)=>{
+  const index=(mesh.nz-j)*(mesh.nr+1);
+  return [X(field[index]),Y(j/mesh.nz*thickness)];
+ });
+ const points=profilePoints(drawField,H),endPoints=profilePoints(end.T,endH);
+ const gradient=ctx.createLinearGradient(l,0,w-r,0);gradient.addColorStop(0,'#dff18900');gradient.addColorStop(1,'#dff18932');ctx.beginPath();ctx.moveTo(l,top);points.forEach(p=>ctx.lineTo(...p));ctx.lineTo(l,Y(H));ctx.closePath();ctx.fillStyle=gradient;ctx.fill();
+ ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.strokeStyle=palette.core;ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(X(frame.s.core),Y(H/2),3,0,Math.PI*2);ctx.fillStyle=palette.core;ctx.fill();
+ ctx.beginPath();endPoints.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));
+ ctx.strokeStyle=endProfileColor;ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.stroke();
+ ctx.restore();
  // Boundary colors match the A/B temperature-history curves and remain attached
  // to the physical sides when the meat is flipped.
- for(const [name,y,color,endpoint] of [['B',top,palette.faceB,points[0]],['A',h-bottom,palette.faceA,points.at(-1)]]){
+ for(const [name,y,color,endpoint] of [['B',top,palette.faceB,points[0]],['A',Y(H),palette.faceA,points.at(-1)]]){
   ctx.beginPath();ctx.moveTo(l,y);ctx.lineTo(w-r,y);ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.stroke();
   ctx.beginPath();ctx.arc(15,y,10,0,Math.PI*2);ctx.fillStyle=color+'24';ctx.fill();ctx.strokeStyle=color;ctx.lineWidth=1.3;ctx.stroke();label(ctx,name,15,y+4,color,14,'center');
   ctx.beginPath();ctx.arc(endpoint[0],endpoint[1],3.5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
@@ -225,14 +354,13 @@ $('hobTechnology').onchange=()=>{$('transferPercent').value={induction:85,radian
 $('useManualRating').onclick=()=>{const rated=+$('ratedWatts').value,fraction=+$('transferPercent').value/100;if(!Number.isFinite(rated)||rated<100||rated>10000||!Number.isFinite(fraction)||fraction<.1||fraction>1||rated*fraction<100||rated*fraction>6000){$('stoveError').textContent='Check rating and transfer: estimated input must be 100–6000 W.';return;}pendingManual={ratedWatts:rated,transferPercent:fraction*100,technology:$('hobTechnology').value};pendingBoil=null;$('stoveWatts').value=Math.round(rated*fraction);if($('stoveName').value==='Model defaults')$('stoveName').value='My stove / zone / pan';$('manualResult').textContent=rated+' W rated × '+Math.round(fraction*100)+'% assumed transfer = '+Math.round(rated*fraction)+' W into pan.';$('boilResult').textContent='';$('stoveError').textContent='';updateStoveNote();};
 $('estimateBoil').onclick=()=>{try{const b={seconds:+$('boilMinutes').value*60,startTemperature:+$('boilStart').value,ambient:+$('boilRoom').value,diameter:+$('boilDiameter').value,pan:config.pan};const r=SteakPhysics.estimateBoilCalibration(b);if(r.watts<100||r.watts>6000)throw new Error('Estimate outside supported 100–6000 W. Check time, temperature and pan.');pendingBoil=b;pendingManual=null;$('manualResult').textContent='';if($('stoveName').value==='Model defaults')$('stoveName').value='My stove / zone / pan';$('stoveWatts').value=Math.round(r.watts);$('boilResult').textContent='Approx. '+Math.round(r.watts)+' W = '+Math.round(r.storedWatts)+' W heating water + pan, plus '+Math.round(r.lossWatts)+' W average estimated losses.';updateStoveNote();$('stoveError').textContent='';}catch(e){$('stoveError').textContent=e.message;pendingBoil=null;}};
 $('defaultStove').onclick=()=>{$('stoveWatts').value=1800;$('stoveSteps').value=12;$('stoveCurve').value=1;$('stoveName').value='Model defaults';pendingBoil=null;pendingManual=null;$('manualResult').textContent='';$('boilResult').textContent='Defaults selected. Save to apply.';updateStoveNote();};
-$('stoveForm').onsubmit=e=>{e.preventDefault();if(!$('stoveForm').reportValidity())return;stoveProfiles[config.pan]={name:$('stoveName').value.trim()||'My stove / zone / pan',maxStep:+$('stoveSteps').value,maxHeatWatts:+$('stoveWatts').value,powerExponent:+$('stoveCurve').value,boil:pendingBoil,manual:pendingManual};let saved=true;try{localStorage.setItem(stoveStorageKey,JSON.stringify(stoveProfiles));}catch{saved=false;}loadStoveProfile();suggestion=null;renderSuggestion();renderEvents();requestCompute();$('stoveDialog').close();toast(saved?'Stove profile saved and applied.':'Stove settings applied for this session; browser storage is unavailable.');};
+$('stoveForm').onsubmit=e=>{e.preventDefault();if(!$('stoveForm').reportValidity())return;stoveProfiles[config.pan]={name:$('stoveName').value.trim()||'My stove / zone / pan',maxStep:+$('stoveSteps').value,maxHeatWatts:+$('stoveWatts').value,powerExponent:+$('stoveCurve').value,boil:pendingBoil,manual:pendingManual};let saved=true;try{localStorage.setItem(stoveStorageKey,JSON.stringify(stoveProfiles));}catch{saved=false;}loadStoveProfile();renderEvents();requestCompute();$('stoveDialog').close();toast(saved?'Stove profile saved and applied.':'Stove settings applied for this session; browser storage is unavailable.');};
 
 makeFields();fillIcons();updateColorScale();preset('classic',true);syncInputs();
 $('scaleMode').onchange=()=>{colorMode=$('scaleMode').value;updateColorScale();if(result){drawScene();drawHistory();drawProfile();}};
 $('scenarioSelect').onchange=()=>preset($('scenarioSelect').value);
-$('openPlan').onclick=()=>$('planDialog').showModal();$('closePlan').onclick=()=>$('planDialog').close();
-$('clearPlan').onclick=()=>{clearUndo={events:events.map(e=>({...e})),rows:{...timelineRows},duration};events=[];timelineRows={};suggestion=null;$('eventDialog').close();$('undoClear').hidden=false;changedEvents();toast('Cooking plan cleared. Undo restores the actions.');};
-$('undoClear').onclick=()=>{if(!clearUndo)return;events=clearUndo.events;timelineRows=clearUndo.rows;duration=clearUndo.duration;$('duration').value=duration/60;clearUndo=null;$('undoClear').hidden=true;changedEvents();toast('Cooking plan restored.');};
+$('clearPlan').onclick=()=>{closeActionEditor();events=[];timelineRows={};changedEvents();toast('Cooking plan cleared. Undo restores the actions.');};
+$('undoPlan').onclick=()=>restorePlan(-1);$('redoPlan').onclick=()=>restorePlan(1);
 $('timelineAxis').onclick=e=>{const tick=e.target.closest('[data-time]');if(tick)seek(+tick.dataset.time);};
 $('foodGuidance').onclick=()=>showInfo('Cooking temperatures & food guidance',$('safetyNote').innerHTML,true);
 $('suggestPlan').onclick=suggestPlan;
@@ -247,13 +375,25 @@ $('panType').onchange=()=>{config.pan=$('panType').value;loadStoveProfile();rend
 document.querySelectorAll('[data-meat]').forEach(b=>b.onclick=()=>{config.meat=b.dataset.meat;target={minced:75,beef:56,pork:63,chicken:75,fish:63}[config.meat];syncInputs();requestCompute();});
 $('target').oninput=()=>{target=config.meat==='minced'?75:+$('target').value;rangeFill($('target'));updateTarget();};
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-pressed',x===b);});if(result)drawScene();});
-$('play').onclick=()=>{if(pending){toast('The experiment is being calculated.');return;}if(current>=duration)current=0;if(running)clearMotion();running=!running;primePlayback=running&&current===0;lastFrame=performance.now();syncPlay();};
-$('restart').onclick=()=>seek(0);$('scrub').oninput=()=>seek(+$('scrub').value);
+$('play').onclick=()=>{
+ if(pending){toast('The experiment is being calculated.');return;}
+ if(!result)return;
+ if(current>=duration){current=0;clearMotion();}
+ if(running)clearMotion();
+ running=!running;primePlayback=running&&current===0;lastFrame=performance.now();
+ if(running&&guideActive()){
+  stopGuide();startGuideClock();
+  const first=primePlayback?events.filter(e=>e.time===0&&validMotion(e)):[];
+  speakGuide(first,true);
+ }
+ syncPlay();
+};
+$('scrub').oninput=()=>seek(+$('scrub').value);
 document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>scheduleNow(b.dataset.action,b.dataset.action==='oil'?10:undefined));
 $('eventTrack').onclick=e=>{const b=e.target.closest('[data-event-id]');if(b){if(performance.now()<suppressTimelineClickUntil&&+b.dataset.eventId===lastDraggedId)return;openEventEditor(+b.dataset.eventId);}};
 $('eventTrack').onkeydown=e=>{const b=e.target.closest('[data-event-id]');if(!b||!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();const entry=events.find(a=>a.id===+b.dataset.eventId);moveEvent(entry,entry.time+(e.key==='ArrowLeft'?-1:1)*(e.shiftKey?30:5));$('eventTrack').querySelector('[data-event-id="'+entry.id+'"]')?.focus();};
 $('eventTrack').onpointerdown=e=>{const b=e.target.closest('[data-event-id]');if(!b||e.button!==0)return;closeActionEditor();const entry=events.find(a=>a.id===+b.dataset.eventId);running=false;syncPlay();dragEvent={entry,button:b,x:e.clientX,y:e.clientY,time:entry.time,next:entry.time,row:timelineRows[entry.id],moved:false,width:$('eventTrack').clientWidth,pointer:e.pointerId};b.setPointerCapture(e.pointerId);};
-$('eventTrack').onpointermove=e=>{if(!dragEvent||e.pointerId!==dragEvent.pointer)return;const d=dragEvent,dx=e.clientX-d.x;if(!d.moved&&Math.hypot(dx,e.clientY-d.y)<5)return;d.moved=true;d.next=clamp(Math.round((d.time+dx/d.width*duration)/5)*5,0,duration);const y=e.clientY-$('eventTrack').getBoundingClientRect().top;d.row=freeActionRow(d.entry.id,d.next,Math.max(0,Math.min(Math.floor(y/ACTION_ROW_HEIGHT),Math.max(2,...Object.values(timelineRows))+1)));$('eventTrack').style.setProperty('--track-height',Math.max(3,d.row+1,...events.map(a=>timelineRows[a.id]+1))*ACTION_ROW_HEIGHT+'px');d.button.classList.add('dragging');d.button.style.left=100*d.next/duration+'%';d.button.style.top=d.row*ACTION_ROW_HEIGHT+3+'px';setDragGuide(d.next,d.row);};
+$('eventTrack').onpointermove=e=>{if(!dragEvent||e.pointerId!==dragEvent.pointer)return;const d=dragEvent,dx=e.clientX-d.x;if(!d.moved&&Math.hypot(dx,e.clientY-d.y)<5)return;d.moved=true;d.next=clamp(Math.round((d.time+dx/d.width*duration)/5)*5,0,duration);const y=e.clientY-$('eventTrack').getBoundingClientRect().top;d.row=freeActionRow(d.entry.id,d.next,Math.max(0,Math.min(Math.floor(y/ACTION_ROW_HEIGHT),Math.max(2,...Object.values(timelineRows))+1)));$('eventTrack').style.setProperty('--track-height',Math.max(3,d.row+1,...events.map(a=>timelineRows[a.id]+1))*ACTION_ROW_HEIGHT+'px');d.button.classList.add('dragging');d.button.style.setProperty('--event-x',100*d.next/duration+'%');d.button.style.top=d.row*ACTION_ROW_HEIGHT+3+'px';setDragGuide(d.next,d.row);};
 $('eventTrack').onpointerup=e=>{if(!dragEvent||e.pointerId!==dragEvent.pointer)return;const d=dragEvent;dragEvent=null;if(d.button.hasPointerCapture(e.pointerId))d.button.releasePointerCapture(e.pointerId);hideDragGuide();if(d.moved){suppressTimelineClickUntil=performance.now()+400;lastDraggedId=d.entry.id;moveEvent(d.entry,d.next,d.row);toast(eventDescription(d.entry)+' moved to '+timeText(d.next));}};
 $('eventTrack').onpointercancel=()=>{if(!dragEvent)return;dragEvent=null;suppressTimelineClickUntil=performance.now()+400;renderEvents();};
 
@@ -272,10 +412,8 @@ $('actionForm').onchange=()=>{updateEditorAmount();if(editedEvent)applyActionEdi
 $('editActionAmount').oninput=()=>{updateEditorAmount();clearTimeout(editorApplyTimer);if(editedEvent)editorApplyTimer=setTimeout(()=>applyActionEditor(),90);};
 $('eventDialog').onkeydown=e=>{if(e.key==='Escape'){closeActionEditor();editorAnchor?.focus();}};
 document.addEventListener('pointerdown',e=>{if($('eventDialog').open&&!$('eventDialog').contains(e.target)&&!e.target.closest('[data-event-id],[data-tool]'))closeActionEditor();});
-$('eventRows').onchange=e=>{const row=e.target.closest('[data-id]');if(!row||!e.target.classList.contains('event-enabled'))return;const entry=events.find(a=>a.id===+row.dataset.id);entry.enabled=e.target.checked;changedEvents();};
-$('eventRows').onclick=e=>{const edit=e.target.closest('[data-edit-event]');if(edit){openEventEditor(+edit.dataset.editEvent);return;}if(!e.target.closest('.remove-event'))return;const row=e.target.closest('[data-id]');events=events.filter(a=>a.id!==+row.dataset.id);changedEvents();};
 
-$('duration').onchange=()=>{const next=Math.round(clamp(+$('duration').value||13,3,45)*60);if(events.some(e=>e.time>next)){toast('Move or remove actions after '+timeText(next)+' first.');$('duration').value=duration/60;return;}duration=next;timelineWidth=0;current=Math.min(current,duration);renderEvents();compute();};
+$('duration').onchange=()=>{const minutes=clamp(Math.round(+$('duration').value||durationMinutes(duration)),3,45);if(minutes===durationMinutes(duration)){$('duration').value=minutes;return;}const next=minutes*60;if(events.some(e=>e.time>next)){toast('Move or remove actions after '+timeText(next)+' first.');$('duration').value=durationMinutes(duration);return;}duration=next;$('duration').value=minutes;timelineWidth=0;current=Math.min(current,duration);renderEvents();compute();};
 document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>preset(b.dataset.preset));
 $('saveReference').onclick=()=>{if(!result||pending)return;reference={config:{...config},snapshots:result.snapshots.map(p=>({time:p.s.time,core:p.s.core}))};$('referenceLabel').hidden=false;toast('Core curve saved. Change a parameter or try a different technique.');drawHistory();};$('clearReference').onclick=()=>{reference=null;$('referenceLabel').hidden=true;drawHistory();};
 $('reset').onclick=()=>{config={...SteakPhysics.DEFAULTS};loadStoveProfile();target=56;reference=null;$('referenceLabel').hidden=true;preset('classic',true);syncInputs();compute();toast('A fresh experiment is ready.');};
@@ -296,13 +434,21 @@ function queueMotions(actions,now){if(!actions.length)return;motionQueue.push(..
 function validMotion(e){return e.enabled!==false&&!result.warnings.some(w=>w.type===e.type&&Math.abs(w.time-e.time)<1e-6);}
 function animate(now){
  if(actionMotion&&!pending){actionMotion.progress=clamp((now-actionMotion.started)/actionMotion.ms,0,1);drawScene();if(actionMotion.progress>=1)nextMotion(now);}
- if(running&&!pending&&result&&!actionMotion){
-  const delta=Math.min((now-lastFrame)/1000,.2),until=Math.min(duration,current+delta*+$('speed').value);
+ const guided=guideActive();
+ if(running&&!pending&&result&&(!actionMotion||guided)){
+  const delta=Math.min((now-lastFrame)/1000,.2);
+  const position=guided?guidedStartPosition+Math.max(0,now-guidedStartTime)/1000*+$('speed').value:current+delta*+$('speed').value;
+  const until=Math.min(duration,Math.max(current,position));
   const crossing=events.filter(e=>validMotion(e)&&((e.time>current+1e-8&&e.time<=until)||(primePlayback&&e.time===0)));
+  const wasPrimed=primePlayback;
   primePlayback=false;
-  if(crossing.length){current=crossing[0].time;render();queueMotions(crossing.filter(e=>Math.abs(e.time-current)<1e-8),now);}
-  else{current=until;if(now-lastPaint>45){render();lastPaint=now;}}
-  if(current>=duration){running=false;syncPlay();render();}
+  if(crossing.length){
+   current=crossing[0].time;
+   const actions=crossing.filter(e=>Math.abs(e.time-current)<1e-8);
+   if(!wasPrimed||current!==0)speakGuide(actions);
+   render();queueMotions(actions,now);
+  }else{current=until;if(now-lastPaint>45){render();lastPaint=now;}}
+  if(current>=duration){running=false;syncPlay(guided);render();}
  }
  lastFrame=now;requestAnimationFrame(animate);
 }

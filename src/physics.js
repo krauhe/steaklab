@@ -255,6 +255,8 @@ class Engine{
  }
  hasPanContact(){return this.phase==='cooking'||this.phase==='resting'&&this.restMode==='pan';}
  action(type,value){
+  // Serving is an observation marker; it does not change thermal boundaries.
+  if(type==='eat')return this.phase!=='ready';
   if(type==='power'){this.power=number(value,0,0,12);return true;}
   if(type==='oil'){
    const grams=Math.min(30-this.oil,number(value,10,0,30)),capacity=grams/1000*2000;

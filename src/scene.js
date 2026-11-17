@@ -6,14 +6,15 @@ const sectionCanvas=document.createElement('canvas');
 function draw(o){
  const {ctx,w,h,config:c,frame,mesh,panMesh=null,T,sample,heatRGB,texture,rasterEllipse,label,fmt,mode,t,compact=false,motion=null}=o;
  const s=frame.s,small=!compact&&w<560,elevation=28*Math.PI/180,se=Math.sin(elevation),ce=Math.cos(elevation);
- const D=s.diameter??c.diameter,a=D*5,b=a*c.aspect,H=s.thickness??c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
+ const D=s.diameter??c.diameter,a=D*5*c.aspect,b=D*5,H=s.thickness??c.thickness,topSide=s.bottomSide===0?1:0,p=motion?.progress??1,ease=p*p*(3-2*p),rotating=motion?.type==='flip';
  const theta=(s.bottomSide===0?0:Math.PI)-Math.PI+Math.PI*ease;
  const roundness=s.roundness??0;
  // Interpolate the same meridian segments used by the finite elements.
  const radiusAt=v=>{const zz=Math.max(0,Math.min(1,v))*mesh.nz,j=Math.min(mesh.nz-1,Math.floor(zz)),f=zz-j;return SteakPhysics.shapeRadius(j/mesh.nz,roundness)*(1-f)+SteakPhysics.shapeRadius((j+1)/mesh.nz,roundness)*f;};
- // Reserve the entire turn/lift envelope once per geometry. Neither the scale
- // nor the camera center depends on the action, its progress, or the meat side.
- const envelopeH=c.thickness*(c.meat==='minced'&&c.shrinkage!==false?1.3:1),envelopeB=c.diameter*5*c.aspect,halfH=envelopeH/2,flipLift=Math.max(0,envelopeB-halfH);
+ // Reserve the circular footprint's entire turn/lift envelope. Ellipse changes
+ // affect only the meat geometry, never the camera scale or pan position.
+ // The frame also stays fixed through flips, lifts and changes of meat side.
+ const envelopeH=c.thickness*(c.meat==='minced'&&c.shrinkage!==false?1.3:1),envelopeB=c.diameter*5,halfH=envelopeH/2,flipLift=Math.max(0,envelopeB-halfH);
  const flipTop=Math.hypot(envelopeB*se-halfH*ce,envelopeB*ce+halfH*se+flipLift*ce)+(halfH+16)*ce;
  const frameAbove=Math.max(154*se+20*ce,flipTop,envelopeB*se+(envelopeH+78)*ce),frameBelow=Math.max(170*se+24*ce,Math.hypot(envelopeB*se+halfH*ce,Math.min(envelopeB,halfH)*ce+halfH*se)-halfH*ce);
  const frameTop=compact?12:84,frameBottom=small?221:compact?h-29:h-89;
@@ -154,13 +155,14 @@ function draw(o){
  if(!compact)label(ctx,'28° VIEW · PROPORTIONS TO SCALE',small?16:24,small?53:55,'#788b6d',8);
  if(!compact&&!resting&&s.oil>0)label(ctx,'Oil · thin surface film',small?16:24,small?69:71,'#bdb080',9);
  }
- // Front elevation: x and z use one scale. Never exaggerate the height.
- const desiredSW=small?w*.66:w*.28,baseSW=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/envelopeH):desiredSW,sw=baseSW*D/c.diameter,sx=(small?w*.48:w*(compact?.79:.78))-sw/2,sh=baseSW*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
+ // Front elevation through the minor axis: x and z use one scale.
+ // Shape changes narrow the visible width without tilting the top surface.
+ const desiredSW=small?w*.66:w*.28,baseSW=compact?Math.min(desiredSW,Math.max(25,h-78)*c.diameter*10/envelopeH):desiredSW,sw=baseSW*D/c.diameter*c.aspect,sx=(small?w*.48:w*(compact?.79:.78))-sw/2,sh=baseSW*H/(c.diameter*10),sy=small?311:compact?(h-sh)/2-6:h*.51-sh/2;
  if(s.phase==='ready')label(ctx,t('Meat preview'),sx,sy-25,'#a5b09f',11);
  // Keep the raw outline at the same fixed physical scale so contraction can
  // be compared in one frame, without exaggerating either dimension.
  const changed=c.meat==='minced'&&(s.shrinkProgress??0)>.005;
- if(changed){const rawH=baseSW*c.thickness/(c.diameter*10),rawX=sx+(sw-baseSW)/2,rawY=sy+(sh-rawH)/2;ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle='#d9e5c3a8';ctx.lineWidth=1.1;ctx.strokeRect(rawX,rawY,baseSW,rawH);ctx.restore();label(ctx,'Raw outline',rawX,Math.min(rawY,sy)-24,'#aebc9e',11);}
+ if(changed){const rawH=baseSW*c.thickness/(c.diameter*10),rawW=baseSW*c.aspect,rawX=sx+(sw-rawW)/2,rawY=sy+(sh-rawH)/2;ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle='#d9e5c3a8';ctx.lineWidth=1.1;ctx.strokeRect(rawX,rawY,rawW,rawH);ctx.restore();label(ctx,'Raw outline',rawX,Math.min(rawY,sy)-24,'#aebc9e',11);}
 
  if(!compact)label(ctx,compact?'CENTER SECTION':'CENTER SECTION · TRUE PROPORTIONS',sx,sy-(compact?25:43),'#bdcbae',small?8:9);
  if(!compact)label(ctx,'Same scale for diameter and thickness',sx,sy-27,'#788b6d',8);
@@ -176,7 +178,7 @@ function draw(o){
  const centerY=sy+sh/2;
  // Dimension lines provide an unambiguous check against the geometry controls.
  const dy=sy+sh+(compact?20:31);ctx.strokeStyle='#839578';ctx.beginPath();ctx.moveTo(sx,dy);ctx.lineTo(sx+sw,dy);for(const x of [sx,sx+sw]){ctx.moveTo(x,dy-3);ctx.lineTo(x,dy+3);}ctx.moveTo(sx-11,sy);ctx.lineTo(sx-11,sy+sh);for(const y of [sy,sy+sh]){ctx.moveTo(sx-14,y);ctx.lineTo(sx-8,y);}ctx.stroke();
- label(ctx,fmt(D,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H,1)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
+ label(ctx,fmt(D*c.aspect,1)+' cm',sx+sw/2,dy+(compact?10:14),'#c7d7b9',9,'center');ctx.save();ctx.translate(sx-21,centerY);ctx.rotate(-Math.PI/2);label(ctx,fmt(H,1)+' mm',0,0,'#c7d7b9',9,'center');ctx.restore();
  if(changed)label(ctx,'Diameter −'+fmt((1-D/c.diameter)*100)+'% · thickness +'+fmt((H/c.thickness-1)*100)+'%',sx+sw/2,dy+(compact?27:31),'#dcf589',11,'center');
  if(s.phase==='cooking'||s.phase==='resting'&&s.restMode==='pan'){ctx.fillStyle='#b4b99b77';ctx.fillRect(sx+sw*(1-radiusAt(0))/2,sy+sh+3,sw*radiusAt(0),2);}
 }

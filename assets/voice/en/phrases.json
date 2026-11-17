@@ -1,0 +1,14 @@
+{
+  "start": "Voice guide is on. Follow the actions in your cooking plan.",
+  "off": "Turn off the heat.",
+  "oil": "Add the oil. Use the amount shown in your plan.",
+  "add": "Put the meat in the pan.",
+  "flip": "Flip the meat.",
+  "rest_air": "Take the meat out of the pan and let it rest.",
+  "rest_foil": "Take the meat out of the pan and cover it loosely with foil.",
+  "rest_pan": "Turn off the heat and let the meat rest in the pan.",
+  "change_heat": "Change the heat.",
+  "increase_heat": "Increase the heat.",
+  "decrease_heat": "Decrease the heat.",
+  "serve": "Time to eat."
+}
