@@ -207,3 +207,8 @@
 
 
 .stove-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.stove-grid label{display:grid;gap:6px;font-size:13px}.stove-grid input,.stove-grid select{width:100%;min-width:0;padding:9px;font-size:14px}.stove-buttons{display:flex;justify-content:space-between;gap:10px;margin-top:15px}#stoveDialog summary{cursor:pointer;color:var(--lime);padding:12px 0;font-size:16px}#boilResult{color:var(--lime)}#stoveError{color:#f18b77}@media(max-width:500px){.stove-grid{grid-template-columns:1fr}}
+
+/* Selected Cut Ribeye identity; embedded image keeps the app fully offline. */
+.brand{flex-shrink:0;gap:8px}.brand .brand-steak{width:60px;height:40px;object-fit:contain;display:block}.brand .brand-wordmark{font-size:21px;font-weight:800;letter-spacing:-.6px;white-space:nowrap}.brand .brand-wordmark>span{color:var(--lime);font-weight:650}.header-note{letter-spacing:.2px;font-size:12px}
+@media(max-width:540px){.brand .brand-steak{width:48px;height:32px}.brand .brand-wordmark{font-size:19px}}
+

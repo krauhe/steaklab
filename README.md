@@ -1,4 +1,8 @@
-# SteakLab
+# STEAKLab
+
+<img src="assets/steaklab-ribeye.png" alt="STEAKLab — grilled ribeye with a rosy cut centre" width="240">
+
+**Cooking physics, visualised.**
 
 An interactive cooking heat-transfer simulator by Kristian Rauhe Harreby.
 

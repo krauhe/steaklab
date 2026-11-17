@@ -1,6 +1,8 @@
 import {readFile,writeFile} from 'node:fs/promises';
 const base=new URL('./',import.meta.url);
 let html=await readFile(new URL('src/shell.html',base),'utf8');
+const logo=await readFile(new URL('assets/steaklab-ribeye-small.png',base));
+html=html.replace('/*__LOGO__*/','data:image/png;base64,'+logo.toString('base64'));
 for(const [marker,file] of [['STYLE','style.css'],['I18N','i18n.js'],['PHYSICS','physics.js'],['RUNNER','runner.js'],['DISPLAY','display.js'],['SCENE','scene.js'],['APP','app.js']]){
  const text=await readFile(new URL('src/'+file,base),'utf8');
  if(text.includes('</script>'))throw new Error('Unexpected script closing tag in '+file);
